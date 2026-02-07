@@ -101,21 +101,28 @@ class TripService:
     
         update_data = payload.model_dump(exclude_unset=True)
     
-        # --- PATCH invariant check (effective values) ---
+        # ✅ HIER EINFÜGEN: PATCH-invariant check gegen bestehende DB-Werte
         effective_departure = update_data.get("departure_date", trip.departure_date)
         effective_return = update_data.get("return_date", trip.return_date)
     
-        if (
-            effective_departure is not None
-            and effective_return is not None
-            and effective_return < effective_departure
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="return_date must be on/after departure_date",
-            )
-        # -----------------------------------------------
+        if effective_departure is not None and effective_return is not None:
+            if effective_return <= effective_departure:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="return_date must be after departure_date",
+                )
+        # ✅ ENDE CHECK
     
+        for field, value in update_data.items():
+            if field == "trip_type" and value is not None:
+                value = value.value
+            setattr(trip, field, value)
+    
+        await self.db.flush()
+        await self.db.refresh(trip)
+        return TripResponse.model_validate(trip)
+            # -----------------------------------------------
+        
         for field, value in update_data.items():
             if field == "trip_type" and value is not None:
                 value = value.value
