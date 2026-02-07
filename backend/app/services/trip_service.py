@@ -97,29 +97,34 @@ class TripService:
     async def update(
         self, user_id: uuid.UUID, trip_id: uuid.UUID, payload: TripUpdateRequest
     ) -> TripResponse:
-        """Partially update a trip, enforcing ownership.
-
-        Args:
-            user_id: The requesting user's ID.
-            trip_id: The trip to update.
-            payload: Fields to update (only non-None values applied).
-
-        Returns:
-            The updated trip data.
-
-        Raises:
-            HTTPException: 404 if not found or not owned by user.
-        """
         trip = await self._get_trip_or_404(user_id, trip_id)
+    
         update_data = payload.model_dump(exclude_unset=True)
+    
+        # --- PATCH invariant check (effective values) ---
+        effective_departure = update_data.get("departure_date", trip.departure_date)
+        effective_return = update_data.get("return_date", trip.return_date)
+    
+        if (
+            effective_departure is not None
+            and effective_return is not None
+            and effective_return < effective_departure
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="return_date must be on/after departure_date",
+            )
+        # -----------------------------------------------
+    
         for field, value in update_data.items():
             if field == "trip_type" and value is not None:
                 value = value.value
             setattr(trip, field, value)
+    
         await self.db.flush()
         await self.db.refresh(trip)
         return TripResponse.model_validate(trip)
-
+    
     async def delete(self, user_id: uuid.UUID, trip_id: uuid.UUID) -> None:
         """Delete a trip, enforcing ownership.
 
