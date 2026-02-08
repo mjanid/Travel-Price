@@ -125,6 +125,38 @@ async def test_update_partial(db_session):
     assert updated.origin == "JFK"  # unchanged
 
 
+async def test_update_return_before_existing_departure(db_session):
+    """Service rejects return_date that falls before the existing departure_date."""
+    user_id = await _create_user(db_session)
+    service = TripService(db_session)
+    created = await service.create(user_id, _make_create_request())
+
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.update(
+            user_id, created.id,
+            TripUpdateRequest(return_date=date(2026, 6, 1)),
+        )
+    assert exc_info.value.status_code == 422
+
+
+async def test_update_departure_after_existing_return(db_session):
+    """Service rejects departure_date that falls after the existing return_date."""
+    user_id = await _create_user(db_session)
+    service = TripService(db_session)
+    created = await service.create(user_id, _make_create_request())
+
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.update(
+            user_id, created.id,
+            TripUpdateRequest(departure_date=date(2026, 7, 1)),
+        )
+    assert exc_info.value.status_code == 422
+
+
 async def test_delete(db_session):
     """Service deletes a trip."""
     user_id = await _create_user(db_session)

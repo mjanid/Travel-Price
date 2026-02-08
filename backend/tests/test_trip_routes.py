@@ -221,6 +221,44 @@ async def test_update_trip_success(client):
     assert body["data"]["origin"] == "JFK"
 
 
+async def test_update_trip_return_before_existing_departure(client):
+    """PATCH /trips/{id} with return_date before existing departure_date returns 422."""
+    token = await _register_and_login(client)
+    create_resp = await client.post(
+        "/api/v1/trips/",
+        json=VALID_TRIP,
+        headers=_auth_header(token),
+    )
+    trip_id = create_resp.json()["data"]["id"]
+
+    # departure_date is 2026-06-15; try setting return_date before it
+    resp = await client.patch(
+        f"/api/v1/trips/{trip_id}",
+        json={"return_date": "2026-06-10"},
+        headers=_auth_header(token),
+    )
+    assert resp.status_code == 422
+
+
+async def test_update_trip_departure_after_existing_return(client):
+    """PATCH /trips/{id} with departure_date after existing return_date returns 422."""
+    token = await _register_and_login(client)
+    create_resp = await client.post(
+        "/api/v1/trips/",
+        json=VALID_TRIP,
+        headers=_auth_header(token),
+    )
+    trip_id = create_resp.json()["data"]["id"]
+
+    # return_date is 2026-06-22; try setting departure_date after it
+    resp = await client.patch(
+        f"/api/v1/trips/{trip_id}",
+        json={"departure_date": "2026-07-01"},
+        headers=_auth_header(token),
+    )
+    assert resp.status_code == 422
+
+
 async def test_update_trip_not_found(client):
     """PATCH /trips/{id} with non-existent ID returns 404."""
     token = await _register_and_login(client)

@@ -116,6 +116,14 @@ class TripService:
             if field == "trip_type" and value is not None:
                 value = value.value
             setattr(trip, field, value)
+
+        # Validate return_date against the effective departure_date
+        if trip.return_date is not None and trip.return_date <= trip.departure_date:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="return_date must be after departure_date",
+            )
+
         await self.db.flush()
         await self.db.refresh(trip)
         return TripResponse.model_validate(trip)
