@@ -10,6 +10,7 @@ const navLinks = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/trips", label: "Trips" },
   { href: "/watches", label: "Watches" },
+  { href: "/settings", label: "Settings" },
 ];
 
 export function Header() {

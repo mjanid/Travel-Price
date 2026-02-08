@@ -174,6 +174,103 @@ async def test_response_envelope_structure(client):
     assert "errors" in body
 
 
+async def test_update_profile_full_name(client):
+    """PATCH /me updates the user's full name."""
+    await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "update@example.com",
+            "password": "securepassword",
+            "full_name": "Original Name",
+        },
+    )
+    login_resp = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "update@example.com", "password": "securepassword"},
+    )
+    access_token = login_resp.json()["data"]["access_token"]
+
+    response = await client.patch(
+        "/api/v1/auth/me",
+        json={"full_name": "Updated Name"},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["data"]["full_name"] == "Updated Name"
+    assert response.json()["data"]["email"] == "update@example.com"
+
+
+async def test_update_profile_password(client):
+    """PATCH /me updates the password; old password no longer works."""
+    await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "pwchange@example.com",
+            "password": "oldpassword1",
+            "full_name": "PW User",
+        },
+    )
+    login_resp = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "pwchange@example.com", "password": "oldpassword1"},
+    )
+    access_token = login_resp.json()["data"]["access_token"]
+
+    response = await client.patch(
+        "/api/v1/auth/me",
+        json={"password": "newpassword1"},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert response.status_code == 200
+
+    # Old password should fail
+    old_login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "pwchange@example.com", "password": "oldpassword1"},
+    )
+    assert old_login.status_code == 401
+
+    # New password should work
+    new_login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "pwchange@example.com", "password": "newpassword1"},
+    )
+    assert new_login.status_code == 200
+
+
+async def test_update_profile_unauthenticated(client):
+    """PATCH /me without token returns 401."""
+    response = await client.patch(
+        "/api/v1/auth/me",
+        json={"full_name": "Hacker"},
+    )
+    assert response.status_code == 401
+
+
+async def test_update_profile_short_password(client):
+    """PATCH /me with short password returns 422."""
+    await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "shortpw@example.com",
+            "password": "securepassword",
+            "full_name": "Short PW",
+        },
+    )
+    login_resp = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "shortpw@example.com", "password": "securepassword"},
+    )
+    access_token = login_resp.json()["data"]["access_token"]
+
+    response = await client.patch(
+        "/api/v1/auth/me",
+        json={"password": "short"},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert response.status_code == 422
+
+
 async def test_full_auth_flow(client):
     """Full flow: register -> login -> access /me -> refresh -> access /me."""
     # Register

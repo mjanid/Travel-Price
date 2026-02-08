@@ -138,3 +138,8 @@ export interface RegisterRequest {
   password: string;
   full_name: string;
 }
+
+export interface UpdateProfileRequest {
+  full_name?: string;
+  password?: string;
+}
