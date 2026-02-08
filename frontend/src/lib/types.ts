@@ -69,6 +69,65 @@ export interface TripUpdateRequest {
   notes?: string | null;
 }
 
+export interface PriceWatch {
+  id: string;
+  user_id: string;
+  trip_id: string;
+  provider: string;
+  target_price: number;
+  currency: string;
+  is_active: boolean;
+  alert_cooldown_hours: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PriceWatchCreateRequest {
+  trip_id: string;
+  provider?: string;
+  target_price: number;
+  currency?: string;
+  alert_cooldown_hours?: number;
+}
+
+export interface PriceWatchUpdateRequest {
+  target_price?: number;
+  is_active?: boolean;
+  alert_cooldown_hours?: number;
+}
+
+export interface Alert {
+  id: string;
+  price_watch_id: string;
+  user_id: string;
+  price_snapshot_id: string;
+  alert_type: string;
+  channel: string;
+  status: string;
+  target_price: number;
+  triggered_price: number;
+  message: string | null;
+  sent_at: string | null;
+  created_at: string;
+}
+
+export interface PriceSnapshot {
+  id: string;
+  trip_id: string;
+  provider: string;
+  price: number;
+  currency: string;
+  cabin_class: string | null;
+  airline: string | null;
+  outbound_departure: string | null;
+  outbound_arrival: string | null;
+  return_departure: string | null;
+  return_arrival: string | null;
+  stops: number | null;
+  scraped_at: string;
+  created_at: string;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;

@@ -3,9 +3,12 @@
 import { use } from "react";
 import { useRouter } from "next/navigation";
 import { useTrip, useDeleteTrip } from "@/hooks/use-trips";
+import { useScrapeTrip } from "@/hooks/use-prices";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PriceChart } from "@/components/charts/price-chart";
+import { WatchList } from "@/components/watches/watch-list";
 import { formatDate } from "@/lib/utils";
 
 export default function TripDetailPage({
@@ -17,6 +20,7 @@ export default function TripDetailPage({
   const router = useRouter();
   const { data, isLoading, error } = useTrip(id);
   const deleteTrip = useDeleteTrip();
+  const scrapeTrip = useScrapeTrip(id);
 
   if (isLoading) {
     return <p className="text-sm text-muted">Loading trip...</p>;
@@ -42,7 +46,7 @@ export default function TripDetailPage({
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-4xl space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">
           {trip.origin} &rarr; {trip.destination}
@@ -95,6 +99,12 @@ export default function TripDetailPage({
           Edit
         </Button>
         <Button
+          onClick={() => scrapeTrip.mutate({})}
+          loading={scrapeTrip.isPending}
+        >
+          Scrape Now
+        </Button>
+        <Button
           variant="danger"
           onClick={handleDelete}
           loading={deleteTrip.isPending}
@@ -105,6 +115,17 @@ export default function TripDetailPage({
           Back
         </Button>
       </div>
+
+      <div className="space-y-4">
+        <h2 className="text-lg font-semibold text-foreground">
+          Price History
+        </h2>
+        <Card>
+          <PriceChart tripId={id} />
+        </Card>
+      </div>
+
+      <WatchList tripId={id} />
     </div>
   );
 }

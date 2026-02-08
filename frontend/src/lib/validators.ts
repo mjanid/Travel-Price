@@ -40,6 +40,17 @@ export const tripCreateSchema = z
     },
   );
 
+export const priceWatchCreateSchema = z.object({
+  trip_id: z.string().min(1, "Trip is required"),
+  provider: z.string().default("google_flights"),
+  target_price: z.coerce
+    .number()
+    .positive("Target price must be greater than 0"),
+  currency: z.string().length(3).default("USD"),
+  alert_cooldown_hours: z.coerce.number().int().min(1).max(168).default(6),
+});
+
 export type LoginFormData = z.infer<typeof loginSchema>;
 export type RegisterFormData = z.infer<typeof registerSchema>;
 export type TripCreateFormData = z.infer<typeof tripCreateSchema>;
+export type PriceWatchCreateFormData = z.infer<typeof priceWatchCreateSchema>;

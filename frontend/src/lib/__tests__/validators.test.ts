@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { loginSchema, registerSchema, tripCreateSchema } from "../validators";
+import {
+  loginSchema,
+  registerSchema,
+  tripCreateSchema,
+  priceWatchCreateSchema,
+} from "../validators";
 
 describe("loginSchema", () => {
   it("validates correct input", () => {
@@ -76,6 +81,51 @@ describe("tripCreateSchema", () => {
       departure_date: "2025-06-15",
       return_date: "2025-06-20",
       travelers: 1,
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("priceWatchCreateSchema", () => {
+  it("validates correct input", () => {
+    const result = priceWatchCreateSchema.safeParse({
+      trip_id: "550e8400-e29b-41d4-a716-446655440000",
+      target_price: 250,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("applies defaults for provider and cooldown", () => {
+    const result = priceWatchCreateSchema.safeParse({
+      trip_id: "550e8400-e29b-41d4-a716-446655440000",
+      target_price: 100,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.provider).toBe("google_flights");
+      expect(result.data.alert_cooldown_hours).toBe(6);
+    }
+  });
+
+  it("rejects zero target price", () => {
+    const result = priceWatchCreateSchema.safeParse({
+      trip_id: "550e8400-e29b-41d4-a716-446655440000",
+      target_price: 0,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects negative target price", () => {
+    const result = priceWatchCreateSchema.safeParse({
+      trip_id: "550e8400-e29b-41d4-a716-446655440000",
+      target_price: -50,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects missing trip_id", () => {
+    const result = priceWatchCreateSchema.safeParse({
+      target_price: 250,
     });
     expect(result.success).toBe(false);
   });

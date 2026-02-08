@@ -9,6 +9,7 @@ import { classNames } from "@/lib/utils";
 const navLinks = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/trips", label: "Trips" },
+  { href: "/watches", label: "Watches" },
 ];
 
 export function Header() {
