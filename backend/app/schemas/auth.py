@@ -41,6 +41,18 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class UserUpdateRequest(BaseModel):
+    """Schema for updating the current user's profile.
+
+    Attributes:
+        full_name: Updated display name.
+        password: New password (min 8 chars). Omit to keep current.
+    """
+
+    full_name: str | None = Field(default=None, min_length=1, max_length=255)
+    password: str | None = Field(default=None, min_length=8, max_length=128)
+
+
 class UserResponse(BaseModel):
     """Schema for user data in API responses."""
 

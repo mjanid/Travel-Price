@@ -16,6 +16,7 @@ from app.schemas.auth import (
     TokenResponse,
     UserRegisterRequest,
     UserResponse,
+    UserUpdateRequest,
 )
 
 
@@ -120,3 +121,25 @@ class AuthService:
             access_token=create_access_token(user.id),
             refresh_token=create_refresh_token(user.id),
         )
+
+    async def update_profile(
+        self, user: User, payload: UserUpdateRequest
+    ) -> UserResponse:
+        """Update the current user's profile.
+
+        Args:
+            user: The authenticated User ORM instance.
+            payload: Fields to update (only non-None fields are applied).
+
+        Returns:
+            The updated user's public data.
+        """
+        if payload.full_name is not None:
+            user.full_name = payload.full_name
+        if payload.password is not None:
+            user.hashed_password = hash_password(payload.password)
+
+        self.db.add(user)
+        await self.db.flush()
+        await self.db.refresh(user)
+        return UserResponse.model_validate(user)

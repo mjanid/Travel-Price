@@ -8,6 +8,7 @@ import type {
   LoginRequest,
   RegisterRequest,
   TokenResponse,
+  UpdateProfileRequest,
   User,
 } from "@/lib/types";
 import { useAuthStore } from "@/stores/auth-store";
@@ -69,6 +70,23 @@ export function useCurrentUser() {
     enabled: isAuthenticated,
     staleTime: 5 * 60 * 1000,
     retry: false,
+  });
+}
+
+export function useUpdateProfile() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: UpdateProfileRequest) => {
+      const res = await api.patch<ApiResponse<User>>(
+        "/api/v1/auth/me",
+        data,
+      );
+      return res.data!;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["currentUser"] });
+    },
   });
 }
 

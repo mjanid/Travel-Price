@@ -12,6 +12,7 @@ from app.schemas.auth import (
     UserLoginRequest,
     UserRegisterRequest,
     UserResponse,
+    UserUpdateRequest,
 )
 from app.schemas.common import ApiResponse
 from app.services.auth_service import AuthService
@@ -58,3 +59,15 @@ async def get_me(
 ) -> ApiResponse[UserResponse]:
     """Get the currently authenticated user's profile."""
     return ApiResponse(data=UserResponse.model_validate(current_user))
+
+
+@router.patch("/me", response_model=ApiResponse[UserResponse])
+async def update_me(
+    payload: UserUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ApiResponse[UserResponse]:
+    """Update the currently authenticated user's profile."""
+    service = AuthService(db)
+    user = await service.update_profile(current_user, payload)
+    return ApiResponse(data=user)
