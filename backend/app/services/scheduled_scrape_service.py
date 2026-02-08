@@ -87,6 +87,19 @@ class ScheduledScrapeService:
             )
             results = await scraper.execute(query)
             snapshots = await self._store_results(results, trip_id, user_id)
+
+            # Check price watches and send alerts
+            if snapshots:
+                try:
+                    from app.services.alert_service import AlertService
+
+                    alert_service = AlertService(self.db)
+                    await alert_service.check_and_alert(trip_id, user_id, snapshots)
+                except Exception as exc:
+                    logger.error(
+                        "Alert check failed for trip %s: %s", trip_id, exc
+                    )
+
             logger.info(
                 "Scraped %d results for trip %s", len(snapshots), trip_id
             )
