@@ -51,8 +51,19 @@ class GoogleFlightsScraper(BaseScraper):
 
         return self._parse_results(response.text, query)
 
+    # Maps ScrapeQuery cabin_class values to Google Flights tfc parameter values.
+    _CABIN_CLASS_MAP: dict[str, int] = {
+        "economy": 1,
+        "premium_economy": 2,
+        "business": 3,
+        "first": 4,
+    }
+
     def _build_search_url(self, query: ScrapeQuery) -> str:
         """Build the Google Flights search URL.
+
+        Encodes origin, destination, dates, travelers, and cabin class
+        so that fetched prices match the requested trip details.
 
         Args:
             query: The scrape parameters.
@@ -65,6 +76,11 @@ class GoogleFlightsScraper(BaseScraper):
         if query.return_date:
             ret = query.return_date.strftime("%Y-%m-%d")
             params += f"-{ret}"
+        if query.travelers and query.travelers > 1:
+            params += f"&tfa={query.travelers}"
+        cabin_code = self._CABIN_CLASS_MAP.get(query.cabin_class)
+        if cabin_code and cabin_code != 1:
+            params += f"&tfc={cabin_code}"
         return f"{_GOOGLE_FLIGHTS_URL}{params}"
 
     def _parse_results(
