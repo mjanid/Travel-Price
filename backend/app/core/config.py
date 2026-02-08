@@ -41,6 +41,11 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:3000"
 
+    # Celery / Worker settings
+    celery_broker_url: str = "redis://localhost:6379/1"
+    celery_result_backend: str = "redis://localhost:6379/2"
+    scrape_interval_minutes: int = 60
+
 
 @lru_cache
 def get_settings() -> Settings:
