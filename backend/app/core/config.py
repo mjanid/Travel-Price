@@ -46,6 +46,14 @@ class Settings(BaseSettings):
     celery_result_backend: str = "redis://localhost:6379/2"
     scrape_interval_minutes: int = 60
 
+    # Alert / Notification settings
+    alert_cooldown_hours: int = 6
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = "alerts@travelprice.local"
+
 
 @lru_cache
 def get_settings() -> Settings:

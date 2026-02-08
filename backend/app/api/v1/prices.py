@@ -10,6 +10,8 @@ from app.core.security import get_current_user
 from app.models.user import User
 from app.schemas.common import ApiResponse, PaginatedApiResponse
 from app.schemas.price_snapshot import PriceSnapshotResponse, ScrapeRequest
+from app.schemas.price_watch import PriceWatchResponse
+from app.services.price_watch_service import PriceWatchService
 from app.services.scraper_service import ScraperService
 
 router = APIRouter(prefix="/trips", tags=["prices"])
@@ -83,3 +85,36 @@ async def get_price_history(
         provider=provider,
     )
     return PaginatedApiResponse.create(snapshots, total, page, per_page)
+
+
+@router.get(
+    "/{trip_id}/watches",
+    response_model=PaginatedApiResponse[PriceWatchResponse],
+)
+async def list_trip_watches(
+    trip_id: uuid.UUID,
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=20, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PaginatedApiResponse[PriceWatchResponse]:
+    """List price watches for a specific trip.
+
+    Args:
+        trip_id: The trip to list watches for.
+        page: Page number.
+        per_page: Items per page.
+        current_user: The authenticated user.
+        db: Database session.
+
+    Returns:
+        Paginated API response with price watches.
+    """
+    service = PriceWatchService(db)
+    watches, total = await service.list_for_trip(
+        user_id=current_user.id,
+        trip_id=trip_id,
+        page=page,
+        per_page=per_page,
+    )
+    return PaginatedApiResponse.create(watches, total, page, per_page)
