@@ -19,7 +19,7 @@ All 8 MVP features have been implemented:
 | 7 | Frontend: Auth & Trip Management | Done |
 | 8 | Frontend: Price Watch, Dashboard & Alert History | Done |
 
-**Not yet implemented:** Hotel/car rental scrapers, Playwright (JS-rendered scraping), Docker/Docker Compose, GitHub Actions CI/CD, Sentry monitoring, Prometheus/Grafana.
+**Not yet implemented:** Hotel/car rental scrapers, Playwright (JS-rendered scraping), full CI/CD pipeline, Sentry monitoring, Prometheus/Grafana.
 
 ## Tech Stack
 
@@ -88,6 +88,8 @@ Travel-Price/
 │   │   ├── script.py.mako
 │   │   └── versions/
 │   │       └── 0001_initial_schema.py  # All 5 tables: users, trips, price_watches, price_snapshots, alerts
+│   ├── Dockerfile                # Backend container image
+│   ├── entrypoint.sh             # Runs migrations then starts server
 │   ├── tests/                    # 18 test files (~3200 lines)
 │   │   ├── conftest.py           # Async fixtures, in-memory SQLite setup
 │   │   ├── factories.py          # Factory Boy model factories
@@ -146,11 +148,15 @@ Travel-Price/
 │   ├── tsconfig.json
 │   ├── next.config.ts
 │   ├── vitest.config.ts
+│   ├── Dockerfile                # Frontend container image
 │   ├── eslint.config.mjs
 │   └── postcss.config.mjs
 ├── .github/
 │   └── workflows/
 │       └── codeql.yml            # CodeQL security scanning (Python + JS/TS)
+├── .env.example                  # Environment variable template
+├── .gitignore
+├── docker-compose.yml            # Full-stack dev orchestration
 ├── CLAUDE.md
 ├── PLAN-FEATURE-4.md
 └── README.md
@@ -196,7 +202,18 @@ All endpoints require JWT Bearer token (except register/login). Rate limited at 
 
 ## Build & Run Commands
 
-### Backend
+### Docker (recommended)
+
+```bash
+cp .env.example .env                    # Create env file (edit as needed)
+docker compose up --build               # Start all services
+docker compose down                     # Stop all services
+docker compose down -v                  # Stop and remove volumes
+```
+
+Services: `postgres` (:5432), `redis` (:6379), `backend` (:8000), `celery-worker`, `celery-beat`, `frontend` (:3000). The backend entrypoint runs `alembic upgrade head` automatically before starting.
+
+### Backend (manual)
 
 ```bash
 cd backend && pip install -e ".[dev]"   # Install with dev dependencies
@@ -213,7 +230,7 @@ alembic upgrade head                    # Apply migrations
 alembic revision --autogenerate -m ""   # Generate new migration
 ```
 
-### Frontend
+### Frontend (manual)
 
 ```bash
 cd frontend && npm install
@@ -329,13 +346,12 @@ Run frontend tests: `cd frontend && npm test`
 
 ## Known Gaps & Next Steps
 
-1. **Docker/Docker Compose** — Planned but not created. Needed for local multi-service dev and deployment.
-2. **CI/CD** — CodeQL security scanning added. Full CI pipeline (lint, test, build, deploy) not yet implemented.
-3. **Additional scrapers** — Only Google Flights (httpx-based). Hotel and car rental scrapers not implemented.
-4. **Playwright** — Not integrated. Needed for JS-rendered travel sites.
-5. **Monitoring** — Sentry, Prometheus, Grafana not configured.
-6. **E2E tests** — No Playwright E2E tests for frontend.
-7. **Frontend test coverage** — Only lib utilities tested; component/hook tests not yet written.
+1. **CI/CD** — CodeQL security scanning added. Full CI pipeline (lint, test, build, deploy) not yet implemented.
+2. **Additional scrapers** — Only Google Flights (httpx-based). Hotel and car rental scrapers not implemented.
+3. **Playwright** — Not integrated. Needed for JS-rendered travel sites.
+4. **Monitoring** — Sentry, Prometheus, Grafana not configured.
+5. **E2E tests** — No Playwright E2E tests for frontend.
+6. **Frontend test coverage** — Only lib utilities tested; component/hook tests not yet written.
 
 ## Agent Workflow Guidelines
 
