@@ -19,7 +19,7 @@ All 8 MVP features have been implemented:
 | 7 | Frontend: Auth & Trip Management | Done |
 | 8 | Frontend: Price Watch, Dashboard & Alert History | Done |
 
-**Not yet implemented:** Hotel/car rental scrapers, Playwright (JS-rendered scraping), Docker/Docker Compose, GitHub Actions CI/CD, Sentry monitoring, Prometheus/Grafana, versioned Alembic migrations.
+**Not yet implemented:** Hotel/car rental scrapers, Playwright (JS-rendered scraping), Docker/Docker Compose, GitHub Actions CI/CD, Sentry monitoring, Prometheus/Grafana.
 
 ## Tech Stack
 
@@ -83,9 +83,11 @@ Travel-Price/
 │   │   │   ├── base.py           # NotificationPayload
 │   │   │   └── email.py          # Email dispatcher
 │   │   └── main.py               # FastAPI app factory, router registration
-│   ├── migrations/               # Alembic (templates only, no versioned migrations)
+│   ├── migrations/               # Alembic migrations
 │   │   ├── env.py
-│   │   └── script.py.mako
+│   │   ├── script.py.mako
+│   │   └── versions/
+│   │       └── 0001_initial_schema.py  # All 5 tables: users, trips, price_watches, price_snapshots, alerts
 │   ├── tests/                    # 18 test files (~3200 lines)
 │   │   ├── conftest.py           # Async fixtures, in-memory SQLite setup
 │   │   ├── factories.py          # Factory Boy model factories
@@ -159,7 +161,7 @@ Travel-Price/
 - **PriceSnapshot** — id (UUID), trip_id (FK), user_id (FK), provider, price (cents), currency, cabin_class, airline, flight times, stops, raw_data (JSON), scraped_at, created_at
 - **Alert** — id (UUID), price_watch_id (FK), user_id (FK), price_snapshot_id (FK), alert_type, channel, status, target_price, triggered_price, message, sent_at, created_at
 
-All models use UUID primary keys. Cascade deletes are configured on foreign keys. No versioned Alembic migrations have been generated yet (only template files exist).
+All models use UUID primary keys. Cascade deletes are configured on foreign keys. Initial Alembic migration (`001_initial`) covers all 5 tables.
 
 ## API Endpoints
 
@@ -203,8 +205,9 @@ pytest --cov=app                        # Tests with coverage
 celery -A app.workers.celery_app worker --loglevel=info   # Worker
 celery -A app.workers.celery_app beat --loglevel=info     # Scheduler
 
-# Alembic (no versioned migrations yet)
-alembic upgrade head
+# Alembic
+alembic upgrade head                    # Apply migrations
+alembic revision --autogenerate -m ""   # Generate new migration
 ```
 
 ### Frontend
@@ -323,14 +326,13 @@ Run frontend tests: `cd frontend && npm test`
 
 ## Known Gaps & Next Steps
 
-1. **Alembic migrations** — Models are defined but no versioned migrations exist. Run `alembic revision --autogenerate` before first real deployment.
-2. **Docker/Docker Compose** — Planned but not created. Needed for local multi-service dev and deployment.
-3. **CI/CD** — No GitHub Actions workflows yet.
-4. **Additional scrapers** — Only Google Flights (httpx-based). Hotel and car rental scrapers not implemented.
-5. **Playwright** — Not integrated. Needed for JS-rendered travel sites.
-6. **Monitoring** — Sentry, Prometheus, Grafana not configured.
-7. **E2E tests** — No Playwright E2E tests for frontend.
-8. **Frontend test coverage** — Only lib utilities tested; component/hook tests not yet written.
+1. **Docker/Docker Compose** — Planned but not created. Needed for local multi-service dev and deployment.
+2. **CI/CD** — No GitHub Actions workflows yet.
+3. **Additional scrapers** — Only Google Flights (httpx-based). Hotel and car rental scrapers not implemented.
+4. **Playwright** — Not integrated. Needed for JS-rendered travel sites.
+5. **Monitoring** — Sentry, Prometheus, Grafana not configured.
+6. **E2E tests** — No Playwright E2E tests for frontend.
+7. **Frontend test coverage** — Only lib utilities tested; component/hook tests not yet written.
 
 ## Agent Workflow Guidelines
 
