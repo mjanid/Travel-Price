@@ -148,6 +148,9 @@ Travel-Price/
 │   ├── vitest.config.ts
 │   ├── eslint.config.mjs
 │   └── postcss.config.mjs
+├── .github/
+│   └── workflows/
+│       └── codeql.yml            # CodeQL security scanning (Python + JS/TS)
 ├── CLAUDE.md
 ├── PLAN-FEATURE-4.md
 └── README.md
@@ -327,7 +330,7 @@ Run frontend tests: `cd frontend && npm test`
 ## Known Gaps & Next Steps
 
 1. **Docker/Docker Compose** — Planned but not created. Needed for local multi-service dev and deployment.
-2. **CI/CD** — No GitHub Actions workflows yet.
+2. **CI/CD** — CodeQL security scanning added. Full CI pipeline (lint, test, build, deploy) not yet implemented.
 3. **Additional scrapers** — Only Google Flights (httpx-based). Hotel and car rental scrapers not implemented.
 4. **Playwright** — Not integrated. Needed for JS-rendered travel sites.
 5. **Monitoring** — Sentry, Prometheus, Grafana not configured.
