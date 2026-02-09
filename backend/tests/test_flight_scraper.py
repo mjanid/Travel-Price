@@ -184,6 +184,105 @@ async def test_one_way_trip_url(scraper):
     assert "SFO" in request_url
     assert "ORD" in request_url
     assert "2026-08-01" in request_url
+    assert "tfa=2" in request_url
+
+
+@respx.mock
+async def test_url_includes_travelers(scraper):
+    """URL includes tfa parameter when travelers > 1."""
+    query = ScrapeQuery(
+        origin="JFK",
+        destination="LAX",
+        departure_date=date(2026, 6, 15),
+        travelers=3,
+    )
+    html = "<html><body></body></html>"
+    route = respx.get(url__startswith="https://www.google.com/travel/flights").mock(
+        return_value=httpx.Response(200, text=html)
+    )
+
+    await scraper.execute(query)
+    request_url = str(route.calls[0].request.url)
+    assert "tfa=3" in request_url
+
+
+@respx.mock
+async def test_url_omits_travelers_for_single(scraper):
+    """URL omits tfa parameter when travelers is 1 (default)."""
+    query = ScrapeQuery(
+        origin="JFK",
+        destination="LAX",
+        departure_date=date(2026, 6, 15),
+        travelers=1,
+    )
+    html = "<html><body></body></html>"
+    route = respx.get(url__startswith="https://www.google.com/travel/flights").mock(
+        return_value=httpx.Response(200, text=html)
+    )
+
+    await scraper.execute(query)
+    request_url = str(route.calls[0].request.url)
+    assert "tfa=" not in request_url
+
+
+@respx.mock
+async def test_url_includes_cabin_class(scraper):
+    """URL includes tfc parameter for non-economy cabin classes."""
+    query = ScrapeQuery(
+        origin="JFK",
+        destination="LAX",
+        departure_date=date(2026, 6, 15),
+        cabin_class="business",
+    )
+    html = "<html><body></body></html>"
+    route = respx.get(url__startswith="https://www.google.com/travel/flights").mock(
+        return_value=httpx.Response(200, text=html)
+    )
+
+    await scraper.execute(query)
+    request_url = str(route.calls[0].request.url)
+    assert "tfc=3" in request_url
+
+
+@respx.mock
+async def test_url_omits_cabin_for_economy(scraper):
+    """URL omits tfc parameter for economy (default)."""
+    query = ScrapeQuery(
+        origin="JFK",
+        destination="LAX",
+        departure_date=date(2026, 6, 15),
+        cabin_class="economy",
+    )
+    html = "<html><body></body></html>"
+    route = respx.get(url__startswith="https://www.google.com/travel/flights").mock(
+        return_value=httpx.Response(200, text=html)
+    )
+
+    await scraper.execute(query)
+    request_url = str(route.calls[0].request.url)
+    assert "tfc=" not in request_url
+
+
+@respx.mock
+async def test_url_includes_both_travelers_and_cabin(scraper):
+    """URL includes both tfa and tfc when both are non-default."""
+    query = ScrapeQuery(
+        origin="JFK",
+        destination="LAX",
+        departure_date=date(2026, 6, 15),
+        return_date=date(2026, 6, 22),
+        travelers=4,
+        cabin_class="first",
+    )
+    html = "<html><body></body></html>"
+    route = respx.get(url__startswith="https://www.google.com/travel/flights").mock(
+        return_value=httpx.Response(200, text=html)
+    )
+
+    await scraper.execute(query)
+    request_url = str(route.calls[0].request.url)
+    assert "tfa=4" in request_url
+    assert "tfc=4" in request_url
 
 
 @respx.mock
