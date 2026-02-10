@@ -55,6 +55,8 @@ class PaginatedApiResponse(BaseModel, Generic[T]):
         cls, items: list[T], total: int, page: int, per_page: int
     ) -> "PaginatedApiResponse[T]":
         """Build a paginated response from items and totals."""
+        if per_page <= 0:
+            raise ValueError("per_page must be greater than 0")
         return cls(
             data=items,
             meta=PaginationMeta(

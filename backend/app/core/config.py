@@ -1,8 +1,12 @@
 """Application configuration loaded from environment variables."""
 
+import warnings
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_INSECURE_DEFAULT_KEY = "CHANGE-ME-IN-PRODUCTION"
 
 
 class Settings(BaseSettings):
@@ -34,7 +38,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/travel_price"
     redis_url: str = "redis://localhost:6379/0"
 
-    secret_key: str = "CHANGE-ME-IN-PRODUCTION"
+    secret_key: str = _INSECURE_DEFAULT_KEY
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
@@ -54,8 +58,35 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from_email: str = "alerts@travelprice.local"
 
+    @field_validator("scrape_interval_minutes")
+    @classmethod
+    def validate_scrape_interval(cls, v: int) -> int:
+        """Ensure scrape interval is positive."""
+        if v <= 0:
+            raise ValueError("scrape_interval_minutes must be positive")
+        return v
+
+    def warn_if_insecure(self) -> None:
+        """Emit a warning if the secret key is the insecure default."""
+        if self.secret_key == _INSECURE_DEFAULT_KEY:
+            if self.debug:
+                warnings.warn(
+                    "Using insecure default SECRET_KEY. "
+                    "Set SECRET_KEY env var before deploying.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            else:
+                raise ValueError(
+                    "SECRET_KEY must be changed from the default value "
+                    "in non-debug mode. Generate one with: "
+                    'python -c "import secrets; print(secrets.token_urlsafe(32))"'
+                )
+
 
 @lru_cache
 def get_settings() -> Settings:
     """Return a cached Settings instance."""
-    return Settings()
+    settings = Settings()
+    settings.warn_if_insecure()
+    return settings

@@ -25,6 +25,7 @@ class AlertChannel(str, enum.Enum):
 class AlertStatus(str, enum.Enum):
     """Alert delivery status."""
 
+    PENDING = "pending"
     SENT = "sent"
     FAILED = "failed"
 

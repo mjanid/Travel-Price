@@ -70,6 +70,16 @@ class TripUpdateRequest(BaseModel):
             raise ValueError("IATA code must contain only letters")
         return v
 
+    @field_validator("return_date")
+    @classmethod
+    def return_after_departure(cls, v: date | None, info) -> date | None:
+        """Ensure return date is after departure date when both are provided."""
+        if v is not None and "departure_date" in info.data:
+            departure = info.data.get("departure_date")
+            if departure is not None and v <= departure:
+                raise ValueError("return_date must be after departure_date")
+        return v
+
 
 class TripResponse(BaseModel):
     """Schema for trip data in API responses."""

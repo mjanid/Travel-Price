@@ -1,5 +1,11 @@
 """Shared test fixtures."""
 
+import os
+
+# Set test environment variables before importing app modules so that
+# config validation passes (the default secret key is rejected in non-debug mode).
+os.environ.setdefault("DEBUG", "true")
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine

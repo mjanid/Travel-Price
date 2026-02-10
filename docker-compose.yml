@@ -2,9 +2,9 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: travel_price
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-travel_price}
     ports:
       - "5432:5432"
     volumes:
@@ -28,12 +28,10 @@ services:
   backend:
     build: ./backend
     entrypoint: ["./entrypoint.sh"]
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
       - "8000:8000"
     env_file: .env
-    volumes:
-      - ./backend:/app
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,8 +42,6 @@ services:
     build: ./backend
     command: ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info"]
     env_file: .env
-    volumes:
-      - ./backend:/app
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,10 +50,8 @@ services:
 
   celery-beat:
     build: ./backend
-    command: ["celery", "-A", "app.workers.celery_app", "beat", "--loglevel=info"]
+    command: ["celery", "-A", "app.workers.celery_app", "beat", "--schedule=/tmp/celerybeat-schedule", "--loglevel=info"]
     env_file: .env
-    volumes:
-      - ./backend:/app
     depends_on:
       redis:
         condition: service_healthy
@@ -67,10 +61,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     depends_on:
       - backend
 

@@ -31,7 +31,7 @@ export function LoginForm() {
 
     login.mutate(result.data, {
       onSuccess: () => router.push("/dashboard"),
-      onError: (err) => setErrors({ form: err.message }),
+      onError: (err: Error) => setErrors({ form: err.message ?? "Login failed" }),
     });
   }
 

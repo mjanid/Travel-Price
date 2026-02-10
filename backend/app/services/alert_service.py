@@ -203,7 +203,7 @@ class AlertService:
             price_snapshot_id=snapshot.id,
             alert_type=AlertType.PRICE_DROP.value,
             channel=AlertChannel.EMAIL.value,
-            status=AlertStatus.SENT.value,
+            status=AlertStatus.PENDING.value,
             target_price=watch.target_price,
             triggered_price=snapshot.price,
             message=message,
@@ -224,6 +224,7 @@ class AlertService:
             )
             success = await notifier.send(payload)
             if success:
+                alert.status = AlertStatus.SENT.value
                 alert.sent_at = datetime.now(timezone.utc)
             else:
                 alert.status = AlertStatus.FAILED.value
@@ -259,18 +260,38 @@ class AlertService:
         )
 
     async def _get_user(self, user_id: uuid.UUID) -> User:
-        """Fetch a user by ID."""
+        """Fetch a user by ID.
+
+        Raises:
+            HTTPException: 404 if user not found.
+        """
         result = await self.db.execute(
             select(User).where(User.id == user_id)
         )
-        return result.scalar_one()
+        user = result.scalar_one_or_none()
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+        return user
 
     async def _get_trip(self, trip_id: uuid.UUID) -> Trip:
-        """Fetch a trip by ID."""
+        """Fetch a trip by ID.
+
+        Raises:
+            HTTPException: 404 if trip not found.
+        """
         result = await self.db.execute(
             select(Trip).where(Trip.id == trip_id)
         )
-        return result.scalar_one()
+        trip = result.scalar_one_or_none()
+        if trip is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Trip not found",
+            )
+        return trip
 
     async def _paginated_alerts(
         self,

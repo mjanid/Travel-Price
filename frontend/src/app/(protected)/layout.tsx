@@ -12,6 +12,7 @@ export default function ProtectedLayout({
 }) {
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isHydrated = useAuthStore((s) => s.isHydrated);
   const hydrate = useAuthStore((s) => s.hydrate);
 
   useEffect(() => {
@@ -19,12 +20,12 @@ export default function ProtectedLayout({
   }, [hydrate]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (isHydrated && !isAuthenticated) {
       router.replace("/login");
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, isHydrated, router]);
 
-  if (!isAuthenticated) {
+  if (!isHydrated || !isAuthenticated) {
     return null;
   }
 

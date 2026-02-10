@@ -24,7 +24,7 @@ class LogEmailNotifier(BaseNotifier):
         Returns:
             Always True (logging never fails).
         """
-        logger.info(
+        logger.debug(
             "EMAIL ALERT [to=%s, subject=%s]: %s",
             payload.recipient_email,
             payload.subject,
