@@ -3,7 +3,7 @@
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, inspect, pool
 import sqlalchemy as sa
 
 from app.core.config import get_settings
@@ -22,25 +22,30 @@ config.set_main_option("sqlalchemy.url", sync_url)
 
 target_metadata = Base.metadata
 
+LEGACY_REVISION_ID_MAP = {
+    "002_price_watches_last_alerted_at": "002_last_alerted_at",
+}
 
-def _ensure_alembic_version_table_capacity(connection) -> None:
-    """Ensure alembic_version.version_num can store our revision identifiers."""
-    if connection.dialect.name != "postgresql":
+
+def _remap_legacy_revision_ids(connection) -> None:
+    """Remap legacy Alembic revision IDs to current IDs before migration resolution."""
+    if not inspect(connection).has_table("alembic_version"):
         return
 
-    connection.execute(
-        sa.text(
-            """
-            CREATE TABLE IF NOT EXISTS alembic_version (
-                version_num VARCHAR(255) NOT NULL,
-                CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
-            )
-            """
+    for old_revision_id, new_revision_id in LEGACY_REVISION_ID_MAP.items():
+        connection.execute(
+            sa.text(
+                """
+                UPDATE alembic_version
+                SET version_num = :new_revision_id
+                WHERE version_num = :old_revision_id
+                """
+            ),
+            {
+                "old_revision_id": old_revision_id,
+                "new_revision_id": new_revision_id,
+            },
         )
-    )
-    connection.execute(
-        sa.text("ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(255)")
-    )
 
 
 def run_migrations_offline() -> None:
@@ -66,7 +71,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        _ensure_alembic_version_table_capacity(connection)
+        _remap_legacy_revision_ids(connection)
 
         context.configure(
             connection=connection,
