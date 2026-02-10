@@ -4,6 +4,7 @@ from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
+import sqlalchemy as sa
 
 from app.core.config import get_settings
 from app.core.database import Base
@@ -20,6 +21,26 @@ sync_url = settings.database_url.replace("+asyncpg", "")
 config.set_main_option("sqlalchemy.url", sync_url)
 
 target_metadata = Base.metadata
+
+
+def _ensure_alembic_version_table_capacity(connection) -> None:
+    """Ensure alembic_version.version_num can store our revision identifiers."""
+    if connection.dialect.name != "postgresql":
+        return
+
+    connection.execute(
+        sa.text(
+            """
+            CREATE TABLE IF NOT EXISTS alembic_version (
+                version_num VARCHAR(255) NOT NULL,
+                CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
+            )
+            """
+        )
+    )
+    connection.execute(
+        sa.text("ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(255)")
+    )
 
 
 def run_migrations_offline() -> None:
@@ -45,6 +66,8 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        _ensure_alembic_version_table_capacity(connection)
+
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
