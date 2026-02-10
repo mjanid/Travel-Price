@@ -28,13 +28,10 @@ services:
   backend:
     build: ./backend
     entrypoint: ["./entrypoint.sh"]
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
       - "8000:8000"
     env_file: .env
-    user: "1000:1000"
-    volumes:
-      - ./backend:/app
     depends_on:
       postgres:
         condition: service_healthy
@@ -45,9 +42,6 @@ services:
     build: ./backend
     command: ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info"]
     env_file: .env
-    user: "1000:1000"
-    volumes:
-      - ./backend:/app
     depends_on:
       postgres:
         condition: service_healthy
@@ -58,9 +52,6 @@ services:
     build: ./backend
     command: ["celery", "-A", "app.workers.celery_app", "beat", "--schedule=/tmp/celerybeat-schedule", "--loglevel=info"]
     env_file: .env
-    user: "1000:1000"
-    volumes:
-      - ./backend:/app
     depends_on:
       redis:
         condition: service_healthy
@@ -71,13 +62,8 @@ services:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
-    user: "1000:1000"
-    volumes:
-      - ./frontend:/app
-      - frontend_node_modules:/app/node_modules
     depends_on:
       - backend
 
 volumes:
   pgdata:
-  frontend_node_modules:
