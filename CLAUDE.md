@@ -158,7 +158,6 @@ Travel-Price/
 ├── .gitignore
 ├── docker-compose.yml            # Full-stack dev orchestration
 ├── CLAUDE.md
-├── PLAN-FEATURE-4.md
 └── README.md
 ```
 
