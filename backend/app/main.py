@@ -34,6 +34,12 @@ def create_app() -> FastAPI:
 
     app.include_router(api_v1_router)
 
+    @app.get("/health")
+    async def health_check() -> dict[str, str]:
+        """Simple health check endpoint for orchestration and CI."""
+
+        return {"status": "ok"}
+
     return app
 
 

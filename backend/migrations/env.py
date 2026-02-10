@@ -3,7 +3,8 @@
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, inspect, pool
+import sqlalchemy as sa
 
 from app.core.config import get_settings
 from app.core.database import Base
@@ -20,6 +21,31 @@ sync_url = settings.database_url.replace("+asyncpg", "")
 config.set_main_option("sqlalchemy.url", sync_url)
 
 target_metadata = Base.metadata
+
+LEGACY_REVISION_ID_MAP = {
+    "002_price_watches_last_alerted_at": "002_last_alerted_at",
+}
+
+
+def _remap_legacy_revision_ids(connection) -> None:
+    """Remap legacy Alembic revision IDs to current IDs before migration resolution."""
+    if not inspect(connection).has_table("alembic_version"):
+        return
+
+    for old_revision_id, new_revision_id in LEGACY_REVISION_ID_MAP.items():
+        connection.execute(
+            sa.text(
+                """
+                UPDATE alembic_version
+                SET version_num = :new_revision_id
+                WHERE version_num = :old_revision_id
+                """
+            ),
+            {
+                "old_revision_id": old_revision_id,
+                "new_revision_id": new_revision_id,
+            },
+        )
 
 
 def run_migrations_offline() -> None:
@@ -45,6 +71,8 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        _remap_legacy_revision_ids(connection)
+
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
