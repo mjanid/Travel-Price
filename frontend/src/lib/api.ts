@@ -2,7 +2,6 @@
 
 import type {
   ApiResponse,
-  PaginatedResponse,
   TokenResponse,
 } from "./types";
 

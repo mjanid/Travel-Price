@@ -61,6 +61,8 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/travel_price_test
           REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: ci-test-secret-key-not-for-production
+          DEBUG: "true"
         run: |
           pytest --cov=app --cov-report=xml --cov-report=term
 
@@ -135,7 +137,7 @@ jobs:
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix={{branch}}-
+            type=sha
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Docker image
@@ -182,7 +184,7 @@ jobs:
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix={{branch}}-
+            type=sha
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Docker image
@@ -208,12 +210,16 @@ jobs:
 
       - name: Create .env file
         run: |
-          cat > .env << EOF
+          cat > .env <<'EOF'
           DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/travel_price
           REDIS_URL=redis://redis:6379/0
           SECRET_KEY=test-secret-key-for-ci
+          CELERY_BROKER_URL=redis://redis:6379/1
+          CELERY_RESULT_BACKEND=redis://redis:6379/2
+          DEBUG=false
           NEXT_PUBLIC_API_URL=http://backend:8000
           EOF
+          sed -i 's/^[[:space:]]*//' .env
 
       - name: Start services with Docker Compose
         run: docker compose up -d --wait --wait-timeout 60
