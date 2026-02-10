@@ -24,7 +24,8 @@ export function useLogin() {
         "/api/v1/auth/login",
         data,
       );
-      return res.data!;
+      if (!res.data) throw new Error("Invalid login response");
+      return res.data;
     },
     onSuccess: (data) => {
       setTokens(data.access_token, data.refresh_token);
@@ -46,7 +47,8 @@ export function useRegister() {
         "/api/v1/auth/login",
         { email: data.email, password: data.password },
       );
-      return loginRes.data!;
+      if (!loginRes.data) throw new Error("Invalid login response");
+      return loginRes.data;
     },
     onSuccess: (data) => {
       setTokens(data.access_token, data.refresh_token);
@@ -63,9 +65,9 @@ export function useCurrentUser() {
     queryKey: ["currentUser"],
     queryFn: async () => {
       const res = await api.get<ApiResponse<User>>("/api/v1/auth/me");
-      const user = res.data!;
-      setUser(user);
-      return user;
+      if (!res.data) throw new Error("Invalid user response");
+      setUser(res.data);
+      return res.data;
     },
     enabled: isAuthenticated,
     staleTime: 5 * 60 * 1000,
@@ -82,7 +84,8 @@ export function useUpdateProfile() {
         "/api/v1/auth/me",
         data,
       );
-      return res.data!;
+      if (!res.data) throw new Error("Invalid profile response");
+      return res.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["currentUser"] });

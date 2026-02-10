@@ -125,7 +125,7 @@ class BaseScraper(ABC):
             except Exception as exc:
                 last_error = exc
                 if attempt < self.max_retries:
-                    delay = self.base_delay * (2 ** attempt) + random.uniform(0, 0.5)
+                    delay = min(self.base_delay * (2 ** attempt) + random.uniform(0, 0.5), 60.0)
                     logger.warning(
                         "%s: attempt %d failed (%s), retrying in %.1fs",
                         self.provider_name,

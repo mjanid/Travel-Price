@@ -2,7 +2,10 @@
 set -e
 
 echo "Running database migrations..."
-alembic upgrade head
+if ! alembic upgrade head; then
+    echo "ERROR: Database migration failed" >&2
+    exit 1
+fi
 
 echo "Starting $@"
 exec "$@"

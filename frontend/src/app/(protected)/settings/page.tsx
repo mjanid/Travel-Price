@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCurrentUser, useUpdateProfile } from "@/hooks/use-auth";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,10 +18,12 @@ export default function SettingsPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Initialize full_name from user data once loaded
-  if (user && !nameInitialized) {
-    setFullName(user.full_name);
-    setNameInitialized(true);
-  }
+  useEffect(() => {
+    if (user && !nameInitialized) {
+      setFullName(user.full_name);
+      setNameInitialized(true);
+    }
+  }, [user, nameInitialized]);
 
   function handleProfileSubmit(e: React.FormEvent) {
     e.preventDefault();

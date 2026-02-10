@@ -42,15 +42,20 @@ export function WatchForm({ tripId, onSuccess }: WatchFormProps) {
       return;
     }
 
-    // Convert dollars to cents for the API
+    // Convert dollars to cents for the API using string split to avoid
+    // floating-point precision issues (e.g. 249.995 * 100 !== 24999.5)
+    const priceStr = String(result.data.target_price);
+    const [whole = "0", frac = ""] = priceStr.split(".");
+    const cents = parseInt(whole, 10) * 100 + parseInt((frac + "00").slice(0, 2), 10);
+
     const payload = {
       ...result.data,
-      target_price: Math.round(result.data.target_price * 100),
+      target_price: cents,
     };
 
     createWatch.mutate(payload, {
       onSuccess: () => onSuccess?.(),
-      onError: (err) => setErrors({ form: err.message }),
+      onError: (err: Error) => setErrors({ form: err.message }),
     });
   }
 

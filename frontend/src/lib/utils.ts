@@ -7,11 +7,13 @@ export function formatPrice(cents: number, currency = "USD"): string {
 }
 
 export function formatDate(iso: string): string {
-  const date = iso.includes("T") ? new Date(iso) : new Date(iso + "T00:00:00");
+  // Dates without time component are parsed as UTC midnight to avoid timezone shifts
+  const date = iso.includes("T") ? new Date(iso) : new Date(iso + "T00:00:00Z");
   return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "UTC",
   });
 }
 
