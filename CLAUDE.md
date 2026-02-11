@@ -19,7 +19,7 @@ All 8 MVP features have been implemented:
 | 7 | Frontend: Auth & Trip Management | Done |
 | 8 | Frontend: Price Watch, Dashboard & Alert History | Done |
 
-**Not yet implemented:** Hotel/car rental scrapers, Playwright (JS-rendered scraping), full CI/CD pipeline, Sentry monitoring, Prometheus/Grafana.
+**Not yet implemented:** Hotel/car rental scrapers, Playwright (JS-rendered scraping), Sentry monitoring, Prometheus/Grafana.
 
 ## Tech Stack
 
@@ -87,7 +87,8 @@ Travel-Price/
 │   │   ├── env.py
 │   │   ├── script.py.mako
 │   │   └── versions/
-│   │       └── 0001_initial_schema.py  # All 5 tables: users, trips, price_watches, price_snapshots, alerts
+│   │       ├── 0001_initial_schema.py  # All 5 tables: users, trips, price_watches, price_snapshots, alerts
+│   │       └── 0002_create_price_watches_table.py  # Adds last_alerted_at column to price_watches
 │   ├── Dockerfile                # Backend container image
 │   ├── entrypoint.sh             # Runs migrations then starts server
 │   ├── tests/                    # 18 test files (~3200 lines)
@@ -153,10 +154,14 @@ Travel-Price/
 │   └── postcss.config.mjs
 ├── .github/
 │   └── workflows/
-│       └── codeql.yml            # CodeQL security scanning (Python + JS/TS)
+│       ├── ci.yml                # CI pipeline (test, lint, build, Docker push, integration tests)
+│       ├── codeql.yml            # CodeQL security scanning (Python + JS/TS)
+│       ├── dependency-review.yml # Dependency vulnerability scanning on PRs
+│       └── docker-scan.yml       # Trivy Docker image vulnerability scanning
 ├── .env.example                  # Environment variable template
 ├── .gitignore
 ├── docker-compose.yml            # Full-stack dev orchestration
+├── docker-compose.override.yml   # Dev overrides (hot-reload, volume mounts)
 ├── CLAUDE.md
 └── README.md
 ```
@@ -165,7 +170,7 @@ Travel-Price/
 
 - **User** — id (UUID), email, hashed_password, full_name, is_active, timestamps
 - **Trip** — id (UUID), user_id (FK), origin/destination (IATA codes), dates, travelers, trip_type (enum: flight/hotel/car_rental), notes, timestamps
-- **PriceWatch** — id (UUID), user_id (FK), trip_id (FK), provider, target_price (cents), currency, is_active, alert_cooldown_hours, timestamps
+- **PriceWatch** — id (UUID), user_id (FK), trip_id (FK), provider, target_price (cents), currency, is_active, alert_cooldown_hours, last_alerted_at, timestamps
 - **PriceSnapshot** — id (UUID), trip_id (FK), user_id (FK), provider, price (cents), currency, cabin_class, airline, flight times, stops, raw_data (JSON), scraped_at, created_at
 - **Alert** — id (UUID), price_watch_id (FK), user_id (FK), price_snapshot_id (FK), alert_type, channel, status, target_price, triggered_price, message, sent_at, created_at
 
@@ -211,6 +216,8 @@ docker compose down -v                  # Stop and remove volumes
 ```
 
 Services: `postgres` (:5432), `redis` (:6379), `backend` (:8000), `celery-worker`, `celery-beat`, `frontend` (:3000). The backend entrypoint runs `alembic upgrade head` automatically before starting.
+
+A `docker-compose.override.yml` is included for development: it enables hot-reload (`--reload`), mounts source directories as volumes for live editing, and uses a named volume for `node_modules`.
 
 ### Backend (manual)
 
@@ -330,6 +337,8 @@ Run frontend tests: `cd frontend && npm test`
 - Input sanitization on all user-provided search parameters
 - CORS configured for frontend domain only
 - Ownership enforcement: users can only access their own trips/watches/alerts
+- Frontend security headers via `next.config.ts`: X-Frame-Options (DENY), X-Content-Type-Options (nosniff), X-XSS-Protection, Referrer-Policy, HSTS
+- CI security scanning: CodeQL (Python + JS/TS), dependency review on PRs, Trivy Docker image scanning (weekly + on Dockerfile changes)
 
 ## UI/UX Quick Reference
 
@@ -345,12 +354,11 @@ Run frontend tests: `cd frontend && npm test`
 
 ## Known Gaps & Next Steps
 
-1. **CI/CD** — CodeQL security scanning added. Full CI pipeline (lint, test, build, deploy) not yet implemented.
-2. **Additional scrapers** — Only Google Flights (httpx-based). Hotel and car rental scrapers not implemented.
-3. **Playwright** — Not integrated. Needed for JS-rendered travel sites.
-4. **Monitoring** — Sentry, Prometheus, Grafana not configured.
-5. **E2E tests** — No Playwright E2E tests for frontend.
-6. **Frontend test coverage** — Only lib utilities tested; component/hook tests not yet written.
+1. **Additional scrapers** — Only Google Flights (httpx-based). Hotel and car rental scrapers not implemented.
+2. **Playwright** — Not integrated. Needed for JS-rendered travel sites.
+3. **Monitoring** — Sentry, Prometheus, Grafana not configured.
+4. **E2E tests** — No Playwright E2E tests for frontend.
+5. **Frontend test coverage** — Only lib utilities tested; component/hook tests not yet written.
 
 ## Agent Workflow Guidelines
 
