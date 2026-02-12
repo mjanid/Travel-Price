@@ -1,16 +1,18 @@
 "use client";
 
 import {
-  LineChart,
   Line,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ReferenceLine,
   ResponsiveContainer,
+  ComposedChart,
 } from "recharts";
 import { usePriceHistory } from "@/hooks/use-prices";
+import { aggregateSnapshots } from "@/lib/utils";
 
 interface PriceChartProps {
   tripId: string;
@@ -39,27 +41,13 @@ export function PriceChart({ tripId, provider, targetPrice }: PriceChartProps) {
     );
   }
 
-  const chartData = snapshots
-    .slice()
-    .sort(
-      (a, b) =>
-        new Date(a.scraped_at).getTime() - new Date(b.scraped_at).getTime(),
-    )
-    .map((s) => ({
-      date: new Date(s.scraped_at).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      }),
-      price: s.price / 100,
-      fullDate: s.scraped_at,
-    }));
-
+  const chartData = aggregateSnapshots(snapshots);
   const targetDollars = targetPrice ? targetPrice / 100 : undefined;
 
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={chartData}>
+        <ComposedChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
           <XAxis dataKey="date" tick={{ fontSize: 12 }} stroke="#6B7280" />
           <YAxis
@@ -68,15 +56,45 @@ export function PriceChart({ tripId, provider, targetPrice }: PriceChartProps) {
             tickFormatter={(v: number) => `$${v}`}
           />
           <Tooltip
-            formatter={(value) => [`$${Number(value).toFixed(2)}`, "Price"]}
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const d = payload[0].payload;
+              return (
+                <div className="rounded-lg border border-border bg-white p-3 shadow-md">
+                  <p className="text-xs text-muted">{d.date}</p>
+                  <p className="font-medium text-primary">
+                    Best: ${d.min.toFixed(2)}
+                  </p>
+                  <p className="text-sm text-muted">
+                    Range: ${d.min.toFixed(2)} &ndash; ${d.max.toFixed(2)}
+                  </p>
+                  <p className="text-xs text-muted">{d.count} results</p>
+                </div>
+              );
+            }}
+          />
+          <Area
+            type="monotone"
+            dataKey="max"
+            stroke="none"
+            fill="#DBEAFE"
+            fillOpacity={0.5}
+          />
+          <Area
+            type="monotone"
+            dataKey="min"
+            stroke="none"
+            fill="#FFFFFF"
+            fillOpacity={1}
           />
           <Line
             type="monotone"
-            dataKey="price"
+            dataKey="min"
             stroke="#2563EB"
             strokeWidth={2}
             dot={{ r: 3 }}
             activeDot={{ r: 5 }}
+            name="Best Price"
           />
           {targetDollars && (
             <ReferenceLine
@@ -91,7 +109,7 @@ export function PriceChart({ tripId, provider, targetPrice }: PriceChartProps) {
               }}
             />
           )}
-        </LineChart>
+        </ComposedChart>
       </ResponsiveContainer>
     </div>
   );

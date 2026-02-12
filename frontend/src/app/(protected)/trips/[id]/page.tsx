@@ -8,8 +8,9 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PriceChart } from "@/components/charts/price-chart";
+import { FlightResultsTable } from "@/components/flights/flight-results-table";
 import { WatchList } from "@/components/watches/watch-list";
-import { formatDate } from "@/lib/utils";
+import { formatDate, buildGoogleFlightsUrl } from "@/lib/utils";
 
 export default function TripDetailPage({
   params,
@@ -37,6 +38,7 @@ export default function TripDetailPage({
   const trip = data.data!;
   const endDate = trip.return_date ?? trip.departure_date;
   const isPast = new Date(endDate) < new Date();
+  const isFlight = trip.trip_type === "flight";
 
   function handleDelete() {
     if (!confirm("Are you sure you want to delete this trip?")) return;
@@ -91,7 +93,7 @@ export default function TripDetailPage({
         </dl>
       </Card>
 
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         <Button
           variant="secondary"
           onClick={() => router.push(`/trips/${id}/edit`)}
@@ -104,6 +106,16 @@ export default function TripDetailPage({
         >
           Scrape Now
         </Button>
+        {isFlight && (
+          <Button
+            variant="secondary"
+            onClick={() =>
+              window.open(buildGoogleFlightsUrl(trip), "_blank", "noopener")
+            }
+          >
+            Search on Google Flights
+          </Button>
+        )}
         <Button
           variant="danger"
           onClick={handleDelete}
@@ -124,6 +136,15 @@ export default function TripDetailPage({
           <PriceChart tripId={id} />
         </Card>
       </div>
+
+      {isFlight && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold text-foreground">
+            Flight Results
+          </h2>
+          <FlightResultsTable tripId={id} trip={trip} />
+        </div>
+      )}
 
       <WatchList tripId={id} />
     </div>
