@@ -25,6 +25,15 @@ def _get_session_factory() -> async_sessionmaker[AsyncSession]:
     return _session_factory
 
 
+async def dispose_worker_db() -> None:
+    """Dispose the global engine, releasing all pooled connections."""
+    global _engine, _session_factory
+    if _engine is not None:
+        await _engine.dispose()
+        _engine = None
+        _session_factory = None
+
+
 @asynccontextmanager
 async def get_worker_db() -> AsyncGenerator[AsyncSession, None]:
     """Yield an async session with commit/rollback semantics for workers."""

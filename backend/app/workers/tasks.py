@@ -14,7 +14,11 @@ logger = logging.getLogger(__name__)
 @celery_app.task(name="app.workers.tasks.scrape_all_active_trips", bind=True)
 def scrape_all_active_trips(self) -> dict:
     """Fan-out task: find active trips and dispatch individual scrape tasks."""
-    return asyncio.run(_scrape_all_active_trips_async())
+    try:
+        return asyncio.run(_scrape_all_active_trips_async())
+    except Exception as exc:
+        logger.exception("scrape_all_active_trips failed: %s", exc)
+        raise
 
 
 async def _scrape_all_active_trips_async() -> dict:
@@ -51,7 +55,13 @@ def scrape_single_trip(self, trip_id: str, user_id: str) -> dict:
     Returns:
         Dict with trip_id and count of snapshots stored.
     """
-    return asyncio.run(_scrape_single_trip_async(trip_id, user_id))
+    try:
+        return asyncio.run(_scrape_single_trip_async(trip_id, user_id))
+    except Exception as exc:
+        logger.exception(
+            "scrape_single_trip failed for trip %s: %s", trip_id, exc
+        )
+        raise
 
 
 async def _scrape_single_trip_async(trip_id: str, user_id: str) -> dict:
@@ -59,8 +69,12 @@ async def _scrape_single_trip_async(trip_id: str, user_id: str) -> dict:
     from app.services.scheduled_scrape_service import ScheduledScrapeService
     from app.workers.db import get_worker_db
 
-    tid = uuid.UUID(trip_id)
-    uid = uuid.UUID(user_id)
+    try:
+        tid = uuid.UUID(trip_id)
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        logger.error("Invalid UUID format: trip_id=%s, user_id=%s", trip_id, user_id)
+        raise
 
     async with get_worker_db() as db:
         service = ScheduledScrapeService(db)

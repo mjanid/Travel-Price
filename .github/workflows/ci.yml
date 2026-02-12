@@ -61,6 +61,8 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/travel_price_test
           REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: ci-test-secret-key-not-for-production
+          DEBUG: "true"
         run: |
           pytest --cov=app --cov-report=xml --cov-report=term
 
@@ -135,7 +137,7 @@ jobs:
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix={{branch}}-
+            type=sha
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Docker image
@@ -147,7 +149,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
 
   frontend-docker:
     name: Build Frontend Docker Image
@@ -182,7 +184,7 @@ jobs:
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix={{branch}}-
+            type=sha
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Docker image
@@ -194,7 +196,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
 
   integration-test:
     name: Integration Tests
@@ -208,30 +210,34 @@ jobs:
 
       - name: Create .env file
         run: |
-          cat > .env << EOF
+          cat > .env <<'EOF'
           DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/travel_price
           REDIS_URL=redis://redis:6379/0
           SECRET_KEY=test-secret-key-for-ci
+          CELERY_BROKER_URL=redis://redis:6379/1
+          CELERY_RESULT_BACKEND=redis://redis:6379/2
+          DEBUG=false
           NEXT_PUBLIC_API_URL=http://backend:8000
           EOF
+          sed -i 's/^[[:space:]]*//' .env
 
       - name: Start services with Docker Compose
-        run: docker compose up -d --wait --wait-timeout 60
+        run: docker compose -f docker-compose.yml up -d --wait --wait-timeout 60
 
       - name: Check service health
         run: |
           # Wait for backend to be ready
           timeout 30 bash -c 'until curl -f http://localhost:8000/health 2>/dev/null; do sleep 2; done' || exit 1
           echo "Backend is healthy"
-          
+
           # Wait for frontend to be ready
           timeout 30 bash -c 'until curl -f http://localhost:3000 2>/dev/null; do sleep 2; done' || exit 1
           echo "Frontend is healthy"
 
       - name: Show logs on failure
         if: failure()
-        run: docker compose logs
+        run: docker compose -f docker-compose.yml logs
 
       - name: Tear down services
         if: always()
-        run: docker compose down -v
+        run: docker compose -f docker-compose.yml down -v

@@ -16,8 +16,11 @@ if config.config_file_name is not None:
 
 # Override sqlalchemy.url from app settings (convert async URL to sync)
 settings = get_settings()
-sync_url = settings.database_url.replace("+asyncpg", "")
-config.set_main_option("sqlalchemy.url", sync_url)
+# Use proper URL manipulation to strip the async driver
+_db_url = settings.database_url
+for _async_driver in ("+asyncpg", "+aiosqlite"):
+    _db_url = _db_url.replace(_async_driver, "")
+config.set_main_option("sqlalchemy.url", _db_url)
 
 target_metadata = Base.metadata
 

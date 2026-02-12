@@ -2,7 +2,6 @@
 
 import type {
   ApiResponse,
-  PaginatedResponse,
   TokenResponse,
 } from "./types";
 
@@ -71,7 +70,9 @@ async function request<T>(
   const { access } = getTokens();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(options.headers as Record<string, string>),
+    ...(options.headers && typeof options.headers === "object" && !Array.isArray(options.headers)
+      ? (options.headers as Record<string, string>)
+      : {}),
   };
 
   if (access) {
@@ -96,7 +97,7 @@ async function request<T>(
   }
 
   if (res.status === 204) {
-    return undefined as T;
+    return undefined as unknown as T;
   }
 
   const json = await res.json();

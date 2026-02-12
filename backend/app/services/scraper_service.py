@@ -146,7 +146,7 @@ class ScraperService:
         Returns:
             List of stored PriceSnapshotResponse objects.
         """
-        snapshots: list[PriceSnapshotResponse] = []
+        orm_snapshots: list[PriceSnapshot] = []
         for result in results:
             raw_data_str = None
             if result.raw_data is not None:
@@ -172,11 +172,14 @@ class ScraperService:
                 scraped_at=result.scraped_at,
             )
             self.db.add(snapshot)
-            await self.db.flush()
-            await self.db.refresh(snapshot)
-            snapshots.append(PriceSnapshotResponse.model_validate(snapshot))
+            orm_snapshots.append(snapshot)
 
-        return snapshots
+        if orm_snapshots:
+            await self.db.flush()
+            for snap in orm_snapshots:
+                await self.db.refresh(snap)
+
+        return [PriceSnapshotResponse.model_validate(s) for s in orm_snapshots]
 
     async def _get_trip_or_404(self, user_id: uuid.UUID, trip_id: uuid.UUID) -> Trip:
         """Fetch a trip by ID scoped to the given user.

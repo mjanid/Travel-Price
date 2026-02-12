@@ -154,8 +154,11 @@ class ScheduledScrapeService:
                 scraped_at=result.scraped_at,
             )
             self.db.add(snapshot)
-            await self.db.flush()
-            await self.db.refresh(snapshot)
             snapshots.append(snapshot)
+
+        if snapshots:
+            await self.db.flush()
+            for snap in snapshots:
+                await self.db.refresh(snap)
 
         return snapshots

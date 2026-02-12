@@ -48,8 +48,11 @@ export function TripForm({ trip }: TripFormProps) {
 
     const mutation = isEditing ? updateTrip : createTrip;
     mutation.mutate(result.data, {
-      onSuccess: (res) => router.push(`/trips/${res.data!.id}`),
-      onError: (err) => setErrors({ form: err.message }),
+      onSuccess: (res) => {
+        if (!res.data) return;
+        router.push(`/trips/${res.data.id}`);
+      },
+      onError: (err: Error) => setErrors({ form: err.message }),
     });
   }
 

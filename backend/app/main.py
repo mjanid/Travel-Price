@@ -6,6 +6,8 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
+from fastapi.responses import JSONResponse
+
 from app.api.v1 import api_v1_router
 from app.core.config import get_settings
 
@@ -26,13 +28,17 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins.split(","),
+        allow_origins=[o.strip() for o in settings.cors_origins.split(",")],
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization"],
     )
 
     app.include_router(api_v1_router)
+
+    @app.get("/health")
+    async def health_check() -> JSONResponse:
+        return JSONResponse({"status": "healthy"})
 
     return app
 

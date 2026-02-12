@@ -1,0 +1,25 @@
+services:
+  backend:
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    user: "1000:1000"
+    volumes:
+      - ./backend:/app
+
+  celery-worker:
+    user: "1000:1000"
+    volumes:
+      - ./backend:/app
+
+  celery-beat:
+    user: "1000:1000"
+    volumes:
+      - ./backend:/app
+
+  frontend:
+    user: "1000:1000"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+
+volumes:
+  frontend_node_modules:

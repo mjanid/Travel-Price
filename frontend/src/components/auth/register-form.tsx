@@ -35,7 +35,7 @@ export function RegisterForm() {
 
     register.mutate(result.data, {
       onSuccess: () => router.push("/dashboard"),
-      onError: (err) => setErrors({ form: err.message }),
+      onError: (err: Error) => setErrors({ form: err.message ?? "Registration failed" }),
     });
   }
 

@@ -8,9 +8,12 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml ./
-RUN pip install --no-cache-dir -e ".[dev]" psycopg2-binary
+RUN pip install --no-cache-dir -e "." psycopg2-binary
 
 COPY . .
+
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
 
 EXPOSE 8000
 
