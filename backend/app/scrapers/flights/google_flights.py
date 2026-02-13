@@ -194,6 +194,23 @@ class GoogleFlightsScraper(PlaywrightBaseScraper):
         Returns a dict with keys: price_cents, airline, stops,
         departure_time, arrival_time, duration.  Returns None if the
         text cannot be parsed.
+
+        Handles two Google Flights DOM formats:
+
+        **Format A** — departure and arrival on separate lines (dash
+        filtered out)::
+
+            "7:10 AM"  →  line 0 (departure)
+            "8:25 AM"  →  line 1 (arrival)
+            "Austrian" →  line 2 (airline)
+            "1 hr 15 min" → line 3 (duration)
+
+        **Format B** — departure and arrival on a single line joined
+        by ``\\xa0–\\xa0`` or `` – ``::
+
+            "3:05 PM\\xa0–\\xa04:20 PM"  →  line 0 (dep + arr)
+            "Austrian"                    →  line 1 (airline)
+            "1 hr 15 min"                 →  line 2 (duration)
         """
         lines = [
             line.strip()
@@ -202,7 +219,7 @@ class GoogleFlightsScraper(PlaywrightBaseScraper):
             and line.strip() not in ("\xa0–\xa0", "–", "\u2013", "-")
         ]
 
-        if len(lines) < 6:
+        if len(lines) < 5:
             return None
 
         # Extract price — look for $NNN pattern anywhere in lines
@@ -216,17 +233,27 @@ class GoogleFlightsScraper(PlaywrightBaseScraper):
         if price_cents is None:
             return None
 
-        # Line 0: departure time (e.g. "7:10 AM" or "7:10\u202fAM")
-        departure_time = lines[0] if re.search(r"\d{1,2}:\d{2}", lines[0]) else None
-
-        # Line 1: arrival time
-        arrival_time = lines[1] if re.search(r"\d{1,2}:\d{2}", lines[1]) else None
-
-        # Line 2: airline
-        airline = lines[2] if len(lines) > 2 else None
-
-        # Line 3: duration (e.g. "1 hr 15 min")
-        duration = lines[3] if len(lines) > 3 else None
+        # Detect Format B: first line contains both dep and arr times
+        # joined by \xa0–\xa0 or " – " (e.g. "3:05 PM\xa0–\xa04:20 PM")
+        _dash_sep = re.compile(r"\xa0–\xa0|\xa0\u2013\xa0|\s–\s|\s\u2013\s")
+        if _dash_sep.search(lines[0]):
+            # Format B: split combined dep–arr line
+            parts = _dash_sep.split(lines[0], maxsplit=1)
+            departure_time = parts[0].strip()
+            arrival_time = parts[1].strip() if len(parts) > 1 else None
+            # Remaining lines shift up by one
+            airline = lines[1] if len(lines) > 1 else None
+            duration = lines[2] if len(lines) > 2 else None
+        else:
+            # Format A: dep and arr on separate lines
+            departure_time = (
+                lines[0] if re.search(r"\d{1,2}:\d{2}", lines[0]) else None
+            )
+            arrival_time = (
+                lines[1] if re.search(r"\d{1,2}:\d{2}", lines[1]) else None
+            )
+            airline = lines[2] if len(lines) > 2 else None
+            duration = lines[3] if len(lines) > 3 else None
 
         # Stops: look for "Nonstop" or "N stop" pattern
         stops = None

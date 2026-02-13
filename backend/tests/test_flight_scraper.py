@@ -137,6 +137,45 @@ def test_parse_flight_comma_price(scraper):
     assert result["price_cents"] == 123400
 
 
+def test_parse_flight_combined_times_line(scraper):
+    """Parses Format B where dep and arr times are on a single line.
+
+    Google Flights sometimes renders the dep–arr range as a single
+    line ``"3:05 PM\\xa0–\\xa04:20 PM"`` instead of putting the dash
+    on its own line.
+    """
+    text = (
+        "3:05\u202fPM\xa0–\xa04:20\u202fPM\n"
+        "Austrian\n1 hr 15 min\nVIE–BER\nNonstop\n"
+        "76 kg CO2e\n+7% emissions\n$315\nround trip"
+    )
+    result = scraper._parse_flight_text(text)
+    assert result is not None
+    assert result["price_cents"] == 31500
+    assert result["airline"] == "Austrian"
+    assert result["stops"] == 0
+    assert result["departure_time"] == "3:05\u202fPM"
+    assert result["arrival_time"] == "4:20\u202fPM"
+    assert result["duration"] == "1 hr 15 min"
+
+
+def test_parse_flight_combined_times_with_stops(scraper):
+    """Format B with stops — dep and arr on one line, 1 stop."""
+    text = (
+        "6:00\u202fAM\xa0–\xa012:45\u202fPM\n"
+        "Condor\n5 hr 45 min\nVIE–BER\n1 stop\n"
+        "2 hr FRA\n200 kg CO2e\n+50% emissions\n$285\nround trip"
+    )
+    result = scraper._parse_flight_text(text)
+    assert result is not None
+    assert result["price_cents"] == 28500
+    assert result["airline"] == "Condor"
+    assert result["stops"] == 1
+    assert result["departure_time"] == "6:00\u202fAM"
+    assert result["arrival_time"] == "12:45\u202fPM"
+    assert result["duration"] == "5 hr 45 min"
+
+
 def test_parse_flight_no_price(scraper):
     """Returns None when text has no price."""
     text = "Some random text\nwithout a price"

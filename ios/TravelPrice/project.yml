@@ -1,0 +1,49 @@
+name: TravelPrice
+options:
+  bundleIdPrefix: com.travelprice
+  deploymentTarget:
+    iOS: "17.0"
+    macOS: "14.0"
+  xcodeVersion: "16.0"
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5"
+    ENABLE_USER_SCRIPT_SANDBOXING: false
+
+targets:
+  TravelPrice:
+    type: application
+    platform: [iOS, macOS]
+    sources:
+      - path: TravelPrice
+        excludes:
+          - Info.plist
+    info:
+      path: TravelPrice/Info.plist
+      properties:
+        CFBundleDisplayName: Travel Price
+        CFBundleShortVersionString: "1.0.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.travelprice.app
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        INFOPLIST_FILE: TravelPrice/Info.plist
+        SWIFT_STRICT_CONCURRENCY: targeted
+
+  TravelPriceTests:
+    type: bundle.unit-test
+    platform: [iOS, macOS]
+    sources:
+      - TravelPriceTests
+    dependencies:
+      - target: TravelPrice_iOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.travelprice.app.tests
