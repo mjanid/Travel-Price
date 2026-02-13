@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useCreateTrip, useUpdateTrip } from "@/hooks/use-trips";
 import { tripCreateSchema } from "@/lib/validators";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, Select } from "@/components/ui/input";
+import { AirportSearch } from "@/components/trips/airport-search";
 import type { Trip } from "@/lib/types";
 
 interface TripFormProps {
@@ -24,6 +25,7 @@ export function TripForm({ trip }: TripFormProps) {
     departure_date: trip?.departure_date ?? "",
     return_date: trip?.return_date ?? "",
     travelers: trip?.travelers ?? 1,
+    trip_type: trip?.trip_type ?? "flight",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -46,8 +48,9 @@ export function TripForm({ trip }: TripFormProps) {
       return;
     }
 
+    const payload = { ...result.data, trip_type: form.trip_type };
     const mutation = isEditing ? updateTrip : createTrip;
-    mutation.mutate(result.data, {
+    mutation.mutate(payload, {
       onSuccess: (res) => {
         if (!res.data) return;
         router.push(`/trips/${res.data.id}`);
@@ -66,23 +69,19 @@ export function TripForm({ trip }: TripFormProps) {
         </p>
       )}
       <div className="grid gap-4 sm:grid-cols-2">
-        <Input
-          label="Origin (IATA code)"
+        <AirportSearch
+          label="Origin"
           placeholder="JFK"
           value={form.origin}
-          onChange={(e) => handleChange("origin", e.target.value.toUpperCase())}
+          onChange={(code) => handleChange("origin", code)}
           error={errors.origin}
-          maxLength={3}
         />
-        <Input
-          label="Destination (IATA code)"
+        <AirportSearch
+          label="Destination"
           placeholder="LAX"
           value={form.destination}
-          onChange={(e) =>
-            handleChange("destination", e.target.value.toUpperCase())
-          }
+          onChange={(code) => handleChange("destination", code)}
           error={errors.destination}
-          maxLength={3}
         />
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -101,18 +100,31 @@ export function TripForm({ trip }: TripFormProps) {
           error={errors.return_date}
         />
       </div>
-      <Input
-        label="Number of travelers"
-        type="number"
-        min={1}
-        max={20}
-        value={form.travelers}
-        onChange={(e) => {
-          const parsed = parseInt(e.target.value, 10);
-          handleChange("travelers", Number.isNaN(parsed) ? "" : parsed);
-        }}
-        error={errors.travelers}
-      />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Input
+          label="Number of travelers"
+          type="number"
+          min={1}
+          max={20}
+          value={form.travelers}
+          onChange={(e) => {
+            const parsed = parseInt(e.target.value, 10);
+            handleChange("travelers", Number.isNaN(parsed) ? "" : parsed);
+          }}
+          error={errors.travelers}
+        />
+        <Select
+          label="Trip type"
+          value={form.trip_type}
+          onChange={(e) => handleChange("trip_type", e.target.value)}
+          options={[
+            { value: "flight", label: "Flight" },
+            { value: "hotel", label: "Hotel" },
+            { value: "car_rental", label: "Car Rental" },
+          ]}
+          error={errors.trip_type}
+        />
+      </div>
       <div className="flex gap-3">
         <Button type="submit" loading={isPending}>
           {isEditing ? "Update Trip" : "Create Trip"}

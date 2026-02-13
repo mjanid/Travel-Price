@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 import { Header } from "@/components/layout/header";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 export default function ProtectedLayout({
   children,
@@ -33,7 +35,10 @@ export default function ProtectedLayout({
     <div className="min-h-screen bg-background">
       <Header />
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {children}
+        <Breadcrumbs />
+        <ErrorBoundary>
+          {children}
+        </ErrorBoundary>
       </main>
     </div>
   );

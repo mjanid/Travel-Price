@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { toast } from "@/lib/toast";
 import type {
   ApiResponse,
   PaginatedResponse,
@@ -48,7 +49,9 @@ export function useCreateWatch() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["watches"] });
       queryClient.invalidateQueries({ queryKey: ["tripWatches"] });
+      toast.success("Price watch created");
     },
+    onError: (err: Error) => toast.error(err.message),
   });
 }
 
@@ -62,7 +65,9 @@ export function useUpdateWatch(id: string) {
       queryClient.invalidateQueries({ queryKey: ["watches"] });
       queryClient.invalidateQueries({ queryKey: ["tripWatches"] });
       queryClient.invalidateQueries({ queryKey: ["watch", id] });
+      toast.success("Price watch updated");
     },
+    onError: (err: Error) => toast.error(err.message),
   });
 }
 
@@ -74,6 +79,8 @@ export function useDeleteWatch() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["watches"] });
       queryClient.invalidateQueries({ queryKey: ["tripWatches"] });
+      toast.success("Price watch deleted");
     },
+    onError: (err: Error) => toast.error(err.message),
   });
 }

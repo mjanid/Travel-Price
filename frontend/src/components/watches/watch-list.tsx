@@ -5,6 +5,7 @@ import { useTripWatches } from "@/hooks/use-watches";
 import { WatchCard } from "./watch-card";
 import { WatchForm } from "./watch-form";
 import { Button } from "@/components/ui/button";
+import { CardSkeleton } from "@/components/ui/skeleton";
 
 interface WatchListProps {
   tripId: string;
@@ -30,7 +31,11 @@ export function WatchList({ tripId }: WatchListProps) {
       )}
 
       {isLoading ? (
-        <p className="text-sm text-muted">Loading watches...</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <CardSkeleton key={i} />
+          ))}
+        </div>
       ) : error ? (
         <p className="text-sm text-danger">Failed to load watches.</p>
       ) : watches.length === 0 ? (

@@ -1,12 +1,14 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTrip, useDeleteTrip } from "@/hooks/use-trips";
 import { useScrapeTrip } from "@/hooks/use-prices";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PriceChart } from "@/components/charts/price-chart";
 import { FlightResultsTable } from "@/components/flights/flight-results-table";
 import { WatchList } from "@/components/watches/watch-list";
@@ -22,9 +24,32 @@ export default function TripDetailPage({
   const { data, isLoading, error } = useTrip(id);
   const deleteTrip = useDeleteTrip();
   const scrapeTrip = useScrapeTrip(id);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   if (isLoading) {
-    return <p className="text-sm text-muted">Loading trip...</p>;
+    return (
+      <div className="mx-auto max-w-4xl space-y-8">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-5 w-20 rounded-full" />
+        </div>
+        <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="space-y-1">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-5 w-32" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="flex gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-9 w-24 rounded-lg" />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   if (error || !data) {
@@ -40,19 +65,28 @@ export default function TripDetailPage({
   const isPast = new Date(endDate) < new Date();
   const isFlight = trip.trip_type === "flight";
 
-  function handleDelete() {
-    if (!confirm("Are you sure you want to delete this trip?")) return;
-    deleteTrip.mutate(id, {
-      onSuccess: () => router.push("/trips"),
-    });
+  const tripTypeLabels: Record<string, string> = {
+    flight: "Flight",
+    hotel: "Hotel",
+    car_rental: "Car Rental",
+  };
+
+  function handleDeleteConfirm() {
+    deleteTrip.mutate(id);
+    setShowDeleteConfirm(false);
   }
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">
-          {trip.origin} &rarr; {trip.destination}
-        </h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-foreground">
+            {trip.origin} &rarr; {trip.destination}
+          </h1>
+          <Badge variant="default">
+            {tripTypeLabels[trip.trip_type] ?? trip.trip_type}
+          </Badge>
+        </div>
         <Badge variant={isPast ? "danger" : "success"}>
           {isPast ? "Past" : "Upcoming"}
         </Badge>
@@ -118,7 +152,7 @@ export default function TripDetailPage({
         )}
         <Button
           variant="danger"
-          onClick={handleDelete}
+          onClick={() => setShowDeleteConfirm(true)}
           loading={deleteTrip.isPending}
         >
           Delete
@@ -147,6 +181,17 @@ export default function TripDetailPage({
       )}
 
       <WatchList tripId={id} />
+
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        title="Delete Trip"
+        message="Are you sure you want to delete this trip? All associated price watches, price history, and alerts will be permanently removed."
+        confirmText="Delete"
+        variant="danger"
+        loading={deleteTrip.isPending}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 }

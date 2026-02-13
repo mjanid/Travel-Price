@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { toast } from "@/lib/toast";
 import type {
   ApiResponse,
   PaginatedResponse,
@@ -38,8 +39,10 @@ export function useCreateTrip() {
       api.post<ApiResponse<Trip>>("/api/v1/trips/", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["trips"] });
+      toast.success("Trip created successfully");
       router.push("/trips");
     },
+    onError: (err: Error) => toast.error(err.message),
   });
 }
 
@@ -52,7 +55,9 @@ export function useUpdateTrip(id: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["trips"] });
       queryClient.invalidateQueries({ queryKey: ["trip", id] });
+      toast.success("Trip updated successfully");
     },
+    onError: (err: Error) => toast.error(err.message),
   });
 }
 
@@ -64,7 +69,9 @@ export function useDeleteTrip() {
     mutationFn: (id: string) => api.delete(`/api/v1/trips/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["trips"] });
+      toast.success("Trip deleted");
       router.push("/trips");
     },
+    onError: (err: Error) => toast.error(err.message),
   });
 }

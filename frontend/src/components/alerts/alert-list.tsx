@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatPrice, formatDate } from "@/lib/utils";
+import { AlertSkeleton } from "@/components/ui/skeleton";
 import type { Alert } from "@/lib/types";
 
 function AlertRow({ alert }: { alert: Alert }) {
@@ -57,7 +58,13 @@ export function AlertList({ watchId }: AlertListProps) {
   const meta = data?.meta;
 
   if (isLoading) {
-    return <p className="text-sm text-muted">Loading alerts...</p>;
+    return (
+      <div className="space-y-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <AlertSkeleton key={i} />
+        ))}
+      </div>
+    );
   }
 
   if (error) {

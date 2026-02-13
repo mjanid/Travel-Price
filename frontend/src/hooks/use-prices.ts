@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { toast } from "@/lib/toast";
 import type {
   ApiResponse,
   PaginatedResponse,
@@ -41,6 +42,8 @@ export function useScrapeTrip(tripId: string) {
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["priceHistory", tripId] });
+      toast.success("Scrape completed");
     },
+    onError: (err: Error) => toast.error(err.message),
   });
 }

@@ -1,14 +1,17 @@
 "use client";
 
 import { usePriceHistory } from "@/hooks/use-prices";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   formatPrice,
   formatTime,
   formatStops,
   buildGoogleFlightsUrl,
-  formatDate,
+  classNames,
 } from "@/lib/utils";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import type { PriceSnapshot, Trip } from "@/lib/types";
 
 interface FlightResultsTableProps {
@@ -18,9 +21,10 @@ interface FlightResultsTableProps {
 
 export function FlightResultsTable({ tripId, trip }: FlightResultsTableProps) {
   const { data, isLoading, error } = usePriceHistory(tripId);
+  const isMobile = useMediaQuery("(max-width: 640px)");
 
   if (isLoading) {
-    return <p className="text-sm text-muted">Loading flight results...</p>;
+    return <TableSkeleton rows={4} />;
   }
 
   if (error) {
@@ -55,15 +59,18 @@ export function FlightResultsTable({ tripId, trip }: FlightResultsTableProps) {
 
   const cheapestPrice = latestResults[0].price;
   const scrapedDate = new Date(latestTimestamp);
-  const scrapedLabel = scrapedDate.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }) + " at " + scrapedDate.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
+  const scrapedLabel =
+    scrapedDate.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }) +
+    " at " +
+    scrapedDate.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
 
   return (
     <Card>
@@ -71,30 +78,44 @@ export function FlightResultsTable({ tripId, trip }: FlightResultsTableProps) {
         <h3 className="font-semibold text-foreground">Latest Flight Results</h3>
         <span className="text-xs text-muted">Last scraped: {scrapedLabel}</span>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-muted">
-              <th className="pb-2 pr-4 font-medium">Airline</th>
-              <th className="pb-2 pr-4 font-medium">Departure</th>
-              <th className="pb-2 pr-4 font-medium">Arrival</th>
-              <th className="pb-2 pr-4 font-medium">Stops</th>
-              <th className="pb-2 pr-4 font-medium text-right">Price</th>
-              <th className="pb-2 font-medium"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {latestResults.map((flight) => (
-              <FlightRow
-                key={flight.id}
-                flight={flight}
-                trip={trip}
-                isCheapest={flight.price === cheapestPrice}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
+
+      {isMobile ? (
+        <div className="space-y-3">
+          {latestResults.map((flight) => (
+            <FlightCard
+              key={flight.id}
+              flight={flight}
+              trip={trip}
+              isCheapest={flight.price === cheapestPrice}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-muted">
+                <th className="pb-2 pr-4 font-medium">Airline</th>
+                <th className="pb-2 pr-4 font-medium">Departure</th>
+                <th className="pb-2 pr-4 font-medium">Arrival</th>
+                <th className="pb-2 pr-4 font-medium">Stops</th>
+                <th className="pb-2 pr-4 font-medium text-right">Price</th>
+                <th className="pb-2 font-medium"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {latestResults.map((flight) => (
+                <FlightRow
+                  key={flight.id}
+                  flight={flight}
+                  trip={trip}
+                  isCheapest={flight.price === cheapestPrice}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </Card>
   );
 }
@@ -109,6 +130,71 @@ function getRawDataField(raw: string | null, field: string): string | null {
   }
 }
 
+function getFlightTimes(flight: PriceSnapshot) {
+  const depTime = flight.outbound_departure
+    ? formatTime(flight.outbound_departure)
+    : getRawDataField(flight.raw_data, "departure_time") ?? "--";
+  const arrTime = flight.outbound_arrival
+    ? formatTime(flight.outbound_arrival)
+    : getRawDataField(flight.raw_data, "arrival_time") ?? "--";
+  return { depTime, arrTime };
+}
+
+function FlightCard({
+  flight,
+  trip,
+  isCheapest,
+}: {
+  flight: PriceSnapshot;
+  trip: Trip;
+  isCheapest: boolean;
+}) {
+  const searchUrl = buildGoogleFlightsUrl(trip, flight.cabin_class ?? undefined);
+  const { depTime, arrTime } = getFlightTimes(flight);
+
+  return (
+    <div
+      className={classNames(
+        "rounded-lg border p-4",
+        isCheapest ? "border-success bg-green-50" : "border-border",
+      )}
+    >
+      <div className="flex items-start justify-between">
+        <p className="font-medium text-foreground">{flight.airline ?? "--"}</p>
+        <div className="text-right">
+          <p className="font-semibold text-foreground">
+            {formatPrice(flight.price, flight.currency)}
+          </p>
+          {isCheapest && (
+            <Badge variant="success">Lowest</Badge>
+          )}
+        </div>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+        <div>
+          <p className="text-xs text-muted">Depart</p>
+          <p className="font-medium text-foreground">{depTime}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted">Arrive</p>
+          <p className="font-medium text-foreground">{arrTime}</p>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center justify-between">
+        <span className="text-xs text-muted">{formatStops(flight.stops)}</span>
+        <a
+          href={searchUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm text-primary hover:underline"
+        >
+          Search &rarr;
+        </a>
+      </div>
+    </div>
+  );
+}
+
 function FlightRow({
   flight,
   trip,
@@ -119,12 +205,7 @@ function FlightRow({
   isCheapest: boolean;
 }) {
   const searchUrl = buildGoogleFlightsUrl(trip, flight.cabin_class ?? undefined);
-  const depTime = flight.outbound_departure
-    ? formatTime(flight.outbound_departure)
-    : getRawDataField(flight.raw_data, "departure_time") ?? "--";
-  const arrTime = flight.outbound_arrival
-    ? formatTime(flight.outbound_arrival)
-    : getRawDataField(flight.raw_data, "arrival_time") ?? "--";
+  const { depTime, arrTime } = getFlightTimes(flight);
 
   return (
     <tr
@@ -137,12 +218,8 @@ function FlightRow({
       <td className="py-3 pr-4 font-medium text-foreground">
         {flight.airline ?? "--"}
       </td>
-      <td className="py-3 pr-4 text-foreground">
-        {depTime}
-      </td>
-      <td className="py-3 pr-4 text-foreground">
-        {arrTime}
-      </td>
+      <td className="py-3 pr-4 text-foreground">{depTime}</td>
+      <td className="py-3 pr-4 text-foreground">{arrTime}</td>
       <td className="py-3 pr-4 text-foreground">
         {formatStops(flight.stops)}
       </td>
