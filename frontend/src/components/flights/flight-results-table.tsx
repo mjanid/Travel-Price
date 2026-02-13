@@ -99,6 +99,16 @@ export function FlightResultsTable({ tripId, trip }: FlightResultsTableProps) {
   );
 }
 
+function getRawDataField(raw: string | null, field: string): string | null {
+  if (!raw) return null;
+  try {
+    const data = JSON.parse(raw);
+    return data[field] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function FlightRow({
   flight,
   trip,
@@ -109,6 +119,12 @@ function FlightRow({
   isCheapest: boolean;
 }) {
   const searchUrl = buildGoogleFlightsUrl(trip, flight.cabin_class ?? undefined);
+  const depTime = flight.outbound_departure
+    ? formatTime(flight.outbound_departure)
+    : getRawDataField(flight.raw_data, "departure_time") ?? "--";
+  const arrTime = flight.outbound_arrival
+    ? formatTime(flight.outbound_arrival)
+    : getRawDataField(flight.raw_data, "arrival_time") ?? "--";
 
   return (
     <tr
@@ -122,10 +138,10 @@ function FlightRow({
         {flight.airline ?? "--"}
       </td>
       <td className="py-3 pr-4 text-foreground">
-        {formatTime(flight.outbound_departure)}
+        {depTime}
       </td>
       <td className="py-3 pr-4 text-foreground">
-        {formatTime(flight.outbound_arrival)}
+        {arrTime}
       </td>
       <td className="py-3 pr-4 text-foreground">
         {formatStops(flight.stops)}

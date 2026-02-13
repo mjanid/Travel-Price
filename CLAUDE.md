@@ -356,6 +356,29 @@ Run frontend tests: `cd frontend && npm test`
 
 `/login` - `/register` - `/dashboard` - `/trips` - `/trips/new` - `/trips/[id]` - `/trips/[id]/edit` - `/watches` - `/watches/[id]` - `/settings`
 
+## Environment (Claude Code)
+
+### What `.claude/env-setup.sh` Does
+
+Claude Code's Bash tool starts with a minimal PATH that often excludes Homebrew, Docker, NVM-managed Node.js, and project virtual environments. The `.claude/env-setup.sh` script fixes this by configuring PATH to include every tool this project requires:
+
+| Tool | Source | Why Needed |
+|------|--------|------------|
+| Docker + Compose | `/usr/local/bin/docker`, Homebrew CLI plugins | Run `docker compose up`, build images, exec into containers |
+| Node.js 25 + npm | NVM (`~/.nvm/versions/node/v25.6.0/`) | Frontend dev server, build, tests (`npm run dev/build/test`) |
+| Python 3.10 + venv | `backend/.venv/` | Backend tests (`pytest`), linting, local development |
+| git, curl, ssh | `/usr/bin/` | Version control, CI |
+
+### SessionStart Hook
+
+The `.claude/settings.json` file defines a `SessionStart` hook that sources `env-setup.sh` automatically at the beginning of every Claude Code session. This writes the correct `PATH`, `VIRTUAL_ENV`, and `NVM_DIR` into `$CLAUDE_ENV_FILE`, making them available to all subsequent Bash tool calls.
+
+### Known PATH Issues
+
+- **Docker not in PATH**: Docker Desktop installs its binary at `/usr/local/bin/docker`, but Claude Code's default PATH is often just `/usr/bin:/bin:/usr/sbin:/sbin`. The env-setup script adds `/usr/local/bin` explicitly.
+- **docker-credential-desktop**: Docker image pulls require the credential helper which also lives under `/usr/local/bin`. Without it, `docker compose build` fails with a credentials error.
+- **NVM not initialized**: Node.js via NVM requires sourcing `~/.nvm/nvm.sh` before `node`/`npm` are available. The env-setup script handles this with `--no-use` for speed, then activates the default version.
+
 ## Known Gaps & Next Steps
 
 1. **Additional scrapers** — Only Google Flights implemented. Hotel and car rental scrapers not implemented.

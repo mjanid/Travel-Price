@@ -19,7 +19,10 @@ RUN pip install --no-cache-dir -e "." psycopg2-binary && \
 COPY . .
 
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+
+# Re-install Playwright browsers as appuser so the binary lands in ~appuser/.cache
 USER appuser
+RUN playwright install chromium
 
 EXPOSE 8000
 

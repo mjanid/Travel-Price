@@ -55,7 +55,7 @@ def mock_playwright_page():
     """Create a mock Playwright Page for unit-testing scrape_page().
 
     The mock page supports goto, wait_for_selector, wait_for_function,
-    evaluate, locator, set_default_timeout, and close.
+    evaluate, frames, set_default_timeout, and close.
     """
     page = AsyncMock()
     page.goto = AsyncMock()
@@ -65,13 +65,8 @@ def mock_playwright_page():
     page.close = AsyncMock()
     page.set_default_timeout = MagicMock()
 
-    # locator().first.is_visible() — used by consent dismissal
-    locator_mock = MagicMock()
-    first_mock = AsyncMock()
-    first_mock.is_visible = AsyncMock(return_value=False)
-    first_mock.click = AsyncMock()
-    locator_mock.first = first_mock
-    page.locator = MagicMock(return_value=locator_mock)
+    # frames — used by consent dismissal (no consent frames by default)
+    page.frames = [MagicMock(url="https://www.google.com/travel/flights")]
 
     return page
 

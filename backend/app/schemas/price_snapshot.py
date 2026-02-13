@@ -50,6 +50,7 @@ class PriceSnapshotResponse(BaseModel):
     return_departure: datetime | None
     return_arrival: datetime | None
     stops: int | None
+    raw_data: str | None = None
     scraped_at: datetime
     created_at: datetime
 

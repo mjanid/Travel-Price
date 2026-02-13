@@ -124,6 +124,7 @@ export interface PriceSnapshot {
   return_departure: string | null;
   return_arrival: string | null;
   stops: number | null;
+  raw_data: string | null;
   scraped_at: string;
   created_at: string;
 }
