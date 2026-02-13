@@ -107,7 +107,10 @@ export function TripForm({ trip }: TripFormProps) {
         min={1}
         max={20}
         value={form.travelers}
-        onChange={(e) => handleChange("travelers", parseInt(e.target.value, 10))}
+        onChange={(e) => {
+          const parsed = parseInt(e.target.value, 10);
+          handleChange("travelers", Number.isNaN(parsed) ? "" : parsed);
+        }}
         error={errors.travelers}
       />
       <div className="flex gap-3">
