@@ -78,7 +78,7 @@ class Alert(Base):
         DateTime(timezone=True), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc)
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )
 
     price_watch = relationship("PriceWatch", backref="alerts")
