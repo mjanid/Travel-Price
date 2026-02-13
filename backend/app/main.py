@@ -1,5 +1,7 @@
 """FastAPI application entry point."""
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -12,6 +14,15 @@ from app.api.v1 import api_v1_router
 from app.core.config import get_settings
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application startup and shutdown lifecycle."""
+    yield
+    # Shutdown: close Playwright browser pool
+    from app.scrapers.playwright_base import _BrowserPool
+    await _BrowserPool.reset()
+
+
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application.
 
@@ -22,7 +33,11 @@ def create_app() -> FastAPI:
 
     limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 
-    app = FastAPI(title=settings.app_name, debug=settings.debug)
+    app = FastAPI(
+        title=settings.app_name,
+        debug=settings.debug,
+        lifespan=lifespan,
+    )
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 

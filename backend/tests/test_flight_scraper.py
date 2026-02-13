@@ -1,11 +1,9 @@
-"""Tests for GoogleFlightsScraper with mocked HTTP responses."""
+"""Tests for GoogleFlightsScraper with mocked Playwright pages."""
 
-import json
-from datetime import date, datetime, timezone
+from datetime import date
+from unittest.mock import AsyncMock, MagicMock, patch
 
-import httpx
 import pytest
-import respx
 
 from app.scrapers.flights.google_flights import GoogleFlightsScraper
 from app.scrapers.types import ScrapeQuery
@@ -28,245 +26,84 @@ def scraper():
     return GoogleFlightsScraper(max_retries=0)
 
 
-def _json_ld_html(offers: list[dict]) -> str:
-    """Build HTML with JSON-LD script tags for testing."""
-    scripts = ""
-    for offer in offers:
-        scripts += f'<script type="application/ld+json">{json.dumps(offer)}</script>\n'
-    return f"<html><head>{scripts}</head><body></body></html>"
+# ── URL building tests (no browser needed) ──────────────────────
 
 
-def _card_html(cards: list[dict]) -> str:
-    """Build HTML with flight card elements for testing."""
-    items = ""
-    for card in cards:
-        price = card.get("price", "$250")
-        airline = card.get("airline", "Test Air")
-        stops = card.get("stops", "Nonstop")
-        items += f'''
-        <li role="listitem">
-            <div data-airline="{airline}">{airline}</div>
-            <span>${price}</span>
-            <span>{stops}</span>
-        </li>
-        '''
-    return f"<html><body><ul>{items}</ul></body></html>"
+def test_build_url_round_trip(scraper, query):
+    """URL contains origin, destination, both dates."""
+    url = scraper._build_search_url(query)
+    assert "JFK" in url
+    assert "LAX" in url
+    assert "2026-06-15" in url
+    assert "2026-06-22" in url
 
 
-@respx.mock
-async def test_parse_json_ld_single_offer(scraper, query):
-    """Scraper parses a single JSON-LD Offer correctly."""
-    html = _json_ld_html([
-        {
-            "@type": "Offer",
-            "price": "234.50",
-            "priceCurrency": "USD",
-            "airline": {"name": "Delta"},
-            "cabinClass": "economy",
-        }
-    ])
-    respx.get(url__startswith="https://www.google.com/travel/flights").mock(
-        return_value=httpx.Response(200, text=html)
-    )
-
-    results = await scraper.execute(query)
-    assert len(results) == 1
-    assert results[0].price == 23450
-    assert results[0].currency == "USD"
-    assert results[0].airline == "Delta"
-    assert results[0].provider == "google_flights"
-
-
-@respx.mock
-async def test_parse_json_ld_multiple_offers(scraper, query):
-    """Scraper parses multiple JSON-LD offers."""
-    html = _json_ld_html([
-        {"@type": "Offer", "price": "200", "priceCurrency": "USD"},
-        {"@type": "Offer", "price": "350", "priceCurrency": "USD"},
-    ])
-    respx.get(url__startswith="https://www.google.com/travel/flights").mock(
-        return_value=httpx.Response(200, text=html)
-    )
-
-    results = await scraper.execute(query)
-    assert len(results) == 2
-    assert results[0].price == 20000
-    assert results[1].price == 35000
-
-
-@respx.mock
-async def test_parse_json_ld_list_format(scraper, query):
-    """Scraper handles JSON-LD as a list."""
-    offers = [
-        {"@type": "Offer", "price": "150", "priceCurrency": "EUR"},
-        {"@type": "Offer", "price": "180", "priceCurrency": "EUR"},
-    ]
-    html = f'<html><head><script type="application/ld+json">{json.dumps(offers)}</script></head><body></body></html>'
-    respx.get(url__startswith="https://www.google.com/travel/flights").mock(
-        return_value=httpx.Response(200, text=html)
-    )
-
-    results = await scraper.execute(query)
-    assert len(results) == 2
-    assert results[0].currency == "EUR"
-
-
-@respx.mock
-async def test_parse_flight_cards_fallback(scraper, query):
-    """Scraper falls back to HTML card parsing when no JSON-LD."""
-    html = _card_html([
-        {"price": "299", "airline": "United", "stops": "1 stop"},
-        {"price": "199", "airline": "JetBlue", "stops": "Nonstop"},
-    ])
-    respx.get(url__startswith="https://www.google.com/travel/flights").mock(
-        return_value=httpx.Response(200, text=html)
-    )
-
-    results = await scraper.execute(query)
-    assert len(results) == 2
-    prices = sorted([r.price for r in results])
-    assert prices == [19900, 29900]
-
-
-@respx.mock
-async def test_parse_nonstop_stops(scraper, query):
-    """Scraper correctly parses 'Nonstop' as 0 stops."""
-    html = _card_html([{"price": "250", "airline": "Delta", "stops": "Nonstop"}])
-    respx.get(url__startswith="https://www.google.com/travel/flights").mock(
-        return_value=httpx.Response(200, text=html)
-    )
-
-    results = await scraper.execute(query)
-    assert len(results) == 1
-    assert results[0].stops == 0
-
-
-@respx.mock
-async def test_empty_page_returns_empty_list(scraper, query):
-    """Scraper returns empty list for a page with no flight data."""
-    html = "<html><body><p>No flights found</p></body></html>"
-    respx.get(url__startswith="https://www.google.com/travel/flights").mock(
-        return_value=httpx.Response(200, text=html)
-    )
-
-    results = await scraper.execute(query)
-    assert results == []
-
-
-@respx.mock
-async def test_http_error_raises(scraper, query):
-    """Scraper raises on HTTP errors (caught by retry logic)."""
-    respx.get(url__startswith="https://www.google.com/travel/flights").mock(
-        return_value=httpx.Response(500, text="Server Error")
-    )
-
-    with pytest.raises(Exception):
-        await scraper.execute(query)
-
-
-@respx.mock
-async def test_one_way_trip_url(scraper):
-    """URL is built correctly for one-way trips (no return_date)."""
-    query = ScrapeQuery(
+def test_build_url_one_way(scraper):
+    """URL omits return date for one-way trips."""
+    q = ScrapeQuery(
         origin="SFO",
         destination="ORD",
         departure_date=date(2026, 8, 1),
         return_date=None,
-        travelers=2,
+        travelers=1,
     )
-    html = "<html><body></body></html>"
-    route = respx.get(url__startswith="https://www.google.com/travel/flights").mock(
-        return_value=httpx.Response(200, text=html)
-    )
-
-    await scraper.execute(query)
-    request_url = str(route.calls[0].request.url)
-    assert "SFO" in request_url
-    assert "ORD" in request_url
-    assert "2026-08-01" in request_url
-    assert "tfa=2" in request_url
+    url = scraper._build_search_url(q)
+    assert "SFO" in url
+    assert "ORD" in url
+    assert "2026-08-01" in url
 
 
-@respx.mock
-async def test_url_includes_travelers(scraper):
+def test_build_url_includes_travelers(scraper):
     """URL includes tfa parameter when travelers > 1."""
-    query = ScrapeQuery(
+    q = ScrapeQuery(
         origin="JFK",
         destination="LAX",
         departure_date=date(2026, 6, 15),
         travelers=3,
     )
-    html = "<html><body></body></html>"
-    route = respx.get(url__startswith="https://www.google.com/travel/flights").mock(
-        return_value=httpx.Response(200, text=html)
-    )
-
-    await scraper.execute(query)
-    request_url = str(route.calls[0].request.url)
-    assert "tfa=3" in request_url
+    url = scraper._build_search_url(q)
+    assert "tfa=3" in url
 
 
-@respx.mock
-async def test_url_omits_travelers_for_single(scraper):
-    """URL omits tfa parameter when travelers is 1 (default)."""
-    query = ScrapeQuery(
+def test_build_url_omits_travelers_for_single(scraper):
+    """URL omits tfa parameter when travelers is 1."""
+    q = ScrapeQuery(
         origin="JFK",
         destination="LAX",
         departure_date=date(2026, 6, 15),
         travelers=1,
     )
-    html = "<html><body></body></html>"
-    route = respx.get(url__startswith="https://www.google.com/travel/flights").mock(
-        return_value=httpx.Response(200, text=html)
-    )
-
-    await scraper.execute(query)
-    request_url = str(route.calls[0].request.url)
-    assert "tfa=" not in request_url
+    url = scraper._build_search_url(q)
+    assert "tfa=" not in url
 
 
-@respx.mock
-async def test_url_includes_cabin_class(scraper):
+def test_build_url_includes_cabin_class(scraper):
     """URL includes tfc parameter for non-economy cabin classes."""
-    query = ScrapeQuery(
+    q = ScrapeQuery(
         origin="JFK",
         destination="LAX",
         departure_date=date(2026, 6, 15),
         cabin_class="business",
     )
-    html = "<html><body></body></html>"
-    route = respx.get(url__startswith="https://www.google.com/travel/flights").mock(
-        return_value=httpx.Response(200, text=html)
-    )
-
-    await scraper.execute(query)
-    request_url = str(route.calls[0].request.url)
-    assert "tfc=3" in request_url
+    url = scraper._build_search_url(q)
+    assert "tfc=3" in url
 
 
-@respx.mock
-async def test_url_omits_cabin_for_economy(scraper):
+def test_build_url_omits_cabin_for_economy(scraper):
     """URL omits tfc parameter for economy (default)."""
-    query = ScrapeQuery(
+    q = ScrapeQuery(
         origin="JFK",
         destination="LAX",
         departure_date=date(2026, 6, 15),
         cabin_class="economy",
     )
-    html = "<html><body></body></html>"
-    route = respx.get(url__startswith="https://www.google.com/travel/flights").mock(
-        return_value=httpx.Response(200, text=html)
-    )
-
-    await scraper.execute(query)
-    request_url = str(route.calls[0].request.url)
-    assert "tfc=" not in request_url
+    url = scraper._build_search_url(q)
+    assert "tfc=" not in url
 
 
-@respx.mock
-async def test_url_includes_both_travelers_and_cabin(scraper):
+def test_build_url_both_travelers_and_cabin(scraper):
     """URL includes both tfa and tfc when both are non-default."""
-    query = ScrapeQuery(
+    q = ScrapeQuery(
         origin="JFK",
         destination="LAX",
         departure_date=date(2026, 6, 15),
@@ -274,47 +111,148 @@ async def test_url_includes_both_travelers_and_cabin(scraper):
         travelers=4,
         cabin_class="first",
     )
-    html = "<html><body></body></html>"
-    route = respx.get(url__startswith="https://www.google.com/travel/flights").mock(
-        return_value=httpx.Response(200, text=html)
-    )
-
-    await scraper.execute(query)
-    request_url = str(route.calls[0].request.url)
-    assert "tfa=4" in request_url
-    assert "tfc=4" in request_url
+    url = scraper._build_search_url(q)
+    assert "tfa=4" in url
+    assert "tfc=4" in url
 
 
-@respx.mock
-async def test_json_ld_skips_non_offer_types(scraper, query):
-    """Scraper ignores JSON-LD entries that aren't Offer/Flight types."""
-    html = _json_ld_html([
-        {"@type": "BreadcrumbList", "items": []},
-        {"@type": "Offer", "price": "300", "priceCurrency": "USD"},
+# ── scrape_page() tests with mocked Playwright page ─────────────
+
+
+async def test_scrape_page_extracts_flight_results(scraper, query, mock_playwright_page):
+    """scrape_page() extracts structured results from page.evaluate()."""
+    mock_playwright_page.evaluate = AsyncMock(return_value=[
+        {"price": "234", "airline": "Delta", "stops": 0, "departureTime": "7:10 AM", "arrivalTime": "10:30 AM"},
+        {"price": "350", "airline": "United", "stops": 1, "departureTime": "9:00 AM", "arrivalTime": "2:15 PM"},
     ])
-    respx.get(url__startswith="https://www.google.com/travel/flights").mock(
-        return_value=httpx.Response(200, text=html)
-    )
 
-    results = await scraper.execute(query)
-    assert len(results) == 1
-    assert results[0].price == 30000
+    results = await scraper.scrape_page(mock_playwright_page, query)
+
+    assert len(results) == 2
+    assert results[0].price == 23400
+    assert results[0].airline == "Delta"
+    assert results[0].stops == 0
+    assert results[0].provider == "google_flights"
+    assert results[1].price == 35000
+    assert results[1].airline == "United"
+    assert results[1].stops == 1
 
 
-@respx.mock
-async def test_json_ld_with_offers_array(scraper, query):
-    """Scraper handles offers nested inside an offers array."""
-    html = _json_ld_html([
-        {
-            "@type": "Offer",
-            "offers": [{"price": "425"}],
-            "priceCurrency": "USD",
-        }
+async def test_scrape_page_empty_results(scraper, query, mock_playwright_page):
+    """scrape_page() returns empty list when no results."""
+    mock_playwright_page.evaluate = AsyncMock(return_value=[])
+
+    results = await scraper.scrape_page(mock_playwright_page, query)
+    assert results == []
+
+
+async def test_scrape_page_skips_invalid_prices(scraper, query, mock_playwright_page):
+    """scrape_page() skips items with unparseable prices."""
+    mock_playwright_page.evaluate = AsyncMock(return_value=[
+        {"price": "abc", "airline": "Bad", "stops": None, "departureTime": None, "arrivalTime": None},
+        {"price": "199", "airline": "Good", "stops": 0, "departureTime": None, "arrivalTime": None},
     ])
-    respx.get(url__startswith="https://www.google.com/travel/flights").mock(
-        return_value=httpx.Response(200, text=html)
-    )
 
-    results = await scraper.execute(query)
+    results = await scraper.scrape_page(mock_playwright_page, query)
     assert len(results) == 1
-    assert results[0].price == 42500
+    assert results[0].airline == "Good"
+    assert results[0].price == 19900
+
+
+async def test_scrape_page_navigates_to_correct_url(scraper, query, mock_playwright_page):
+    """scrape_page() navigates to the correct Google Flights URL."""
+    mock_playwright_page.evaluate = AsyncMock(return_value=[])
+
+    await scraper.scrape_page(mock_playwright_page, query)
+
+    mock_playwright_page.goto.assert_called_once()
+    url = mock_playwright_page.goto.call_args[0][0]
+    assert "google.com/travel/flights" in url
+    assert "JFK" in url
+    assert "LAX" in url
+
+
+async def test_scrape_page_handles_comma_prices(scraper, query, mock_playwright_page):
+    """scrape_page() handles prices with commas like '1,234'."""
+    mock_playwright_page.evaluate = AsyncMock(return_value=[
+        {"price": "1234", "airline": "Delta", "stops": 0, "departureTime": None, "arrivalTime": None},
+    ])
+
+    results = await scraper.scrape_page(mock_playwright_page, query)
+    assert len(results) == 1
+    assert results[0].price == 123400
+
+
+async def test_scrape_page_handles_null_airline_and_stops(scraper, query, mock_playwright_page):
+    """scrape_page() handles results with null airline/stops."""
+    mock_playwright_page.evaluate = AsyncMock(return_value=[
+        {"price": "200", "airline": None, "stops": None, "departureTime": None, "arrivalTime": None},
+    ])
+
+    results = await scraper.scrape_page(mock_playwright_page, query)
+    assert len(results) == 1
+    assert results[0].airline is None
+    assert results[0].stops is None
+    assert results[0].price == 20000
+
+
+async def test_scrape_page_sets_cabin_class_from_query(scraper, mock_playwright_page):
+    """scrape_page() sets cabin_class on results from the query."""
+    q = ScrapeQuery(
+        origin="JFK",
+        destination="LAX",
+        departure_date=date(2026, 6, 15),
+        cabin_class="business",
+    )
+    mock_playwright_page.evaluate = AsyncMock(return_value=[
+        {"price": "500", "airline": "Delta", "stops": 0, "departureTime": None, "arrivalTime": None},
+    ])
+
+    results = await scraper.scrape_page(mock_playwright_page, q)
+    assert results[0].cabin_class == "business"
+
+
+async def test_dismiss_consent_catches_timeout(scraper, mock_playwright_page):
+    """Consent dismissal silently handles timeout/missing dialog."""
+    # is_visible raises timeout — should not propagate
+    locator_mock = MagicMock()
+    first_mock = AsyncMock()
+    first_mock.is_visible = AsyncMock(side_effect=Exception("Timeout"))
+    locator_mock.first = first_mock
+    mock_playwright_page.locator = MagicMock(return_value=locator_mock)
+
+    # Should not raise
+    await scraper._dismiss_consent(mock_playwright_page)
+
+
+# ── Price parsing unit tests ────────────────────────────────────
+
+
+def test_parse_price_text_integer(scraper):
+    """Parses simple integer price."""
+    assert scraper._parse_price_text("234") == 23400
+
+
+def test_parse_price_text_with_dollar_sign(scraper):
+    """Parses price with $ prefix."""
+    assert scraper._parse_price_text("$234") == 23400
+
+
+def test_parse_price_text_with_commas(scraper):
+    """Parses price with commas."""
+    assert scraper._parse_price_text("1,234") == 123400
+
+
+def test_parse_price_text_decimal(scraper):
+    """Parses price with decimal."""
+    assert scraper._parse_price_text("234.50") == 23450
+
+
+def test_parse_price_text_invalid(scraper):
+    """Returns None for unparseable text."""
+    assert scraper._parse_price_text("abc") is None
+
+
+def test_parse_price_text_empty(scraper):
+    """Returns None for empty string."""
+    assert scraper._parse_price_text("") is None

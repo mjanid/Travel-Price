@@ -19,14 +19,14 @@ All 8 MVP features have been implemented:
 | 7 | Frontend: Auth & Trip Management | Done |
 | 8 | Frontend: Price Watch, Dashboard & Alert History | Done |
 
-**Not yet implemented:** Hotel/car rental scrapers, Playwright (JS-rendered scraping), Sentry monitoring, Prometheus/Grafana.
+**Not yet implemented:** Hotel/car rental scrapers, Sentry monitoring, Prometheus/Grafana.
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
 | Backend | Python 3.11+, FastAPI 0.115+, Celery 5.4 + Redis |
-| Scraping | httpx 0.28 + BeautifulSoup4 (static pages) |
+| Scraping | Playwright 1.49+ (JS-rendered pages), httpx 0.28 + BeautifulSoup4 (static pages) |
 | Frontend | Next.js 16 (App Router), TypeScript 5, React 19, Tailwind CSS 4, TanStack Query 5, Zustand 5, Recharts 3 |
 | Database | PostgreSQL 16 (asyncpg), Redis (cache/queue) |
 | Auth | python-jose (JWT), passlib + bcrypt |
@@ -71,10 +71,11 @@ Travel-Price/
 │   │   │   └── alert_service.py
 │   │   ├── scrapers/
 │   │   │   ├── base.py           # BaseScraper (retry, rate-limit, proxy rotation)
+│   │   │   ├── playwright_base.py # PlaywrightBaseScraper + _BrowserPool singleton
 │   │   │   ├── types.py          # ScrapeQuery, PriceResult, ScrapeError
 │   │   │   ├── registry.py       # Provider name → scraper class mapping
 │   │   │   └── flights/
-│   │   │       └── google_flights.py
+│   │   │       └── google_flights.py  # Playwright-based Google Flights scraper
 │   │   ├── workers/
 │   │   │   ├── celery_app.py     # Celery config + Beat schedule
 │   │   │   ├── tasks.py          # scrape_all_active_trips, scrape_single_trip
@@ -264,14 +265,17 @@ api/v1/trips.py  ->  services/trip_service.py  ->  models/trip.py  ->  PostgreSQ
 
 ### Scraping Architecture
 
-- Every scraper inherits `BaseScraper` and implements `async scrape(query: ScrapeQuery) -> list[PriceResult]`
+- Two base classes: `BaseScraper` (httpx, for static pages) and `PlaywrightBaseScraper` (Chromium, for JS-rendered pages)
+- `PlaywrightBaseScraper` extends `BaseScraper` — subclasses implement `scrape_page(page, query)` and get a Playwright `Page`
+- A shared `_BrowserPool` singleton manages a single Chromium instance; isolated `BrowserContext` per scrape
 - Public entry point is `execute()` which wraps `scrape()` with rate limiting + retry
 - Scrapers are stateless and idempotent
 - Rate limiting per-provider via Redis (optional, skipped if Redis unavailable)
 - Proxy rotation and User-Agent rotation built into base class
 - Failed scrapes retry with exponential backoff (max 3 retries)
 - All scraped data stored as immutable timestamped PriceSnapshot records
-- Currently only `google_flights` provider is implemented
+- `GoogleFlightsScraper` uses `PlaywrightBaseScraper` — requires Chromium in the container
+- Docker containers for backend and celery-worker use `shm_size: 256mb` for Chromium
 
 ### Alert System
 
@@ -354,11 +358,11 @@ Run frontend tests: `cd frontend && npm test`
 
 ## Known Gaps & Next Steps
 
-1. **Additional scrapers** — Only Google Flights (httpx-based). Hotel and car rental scrapers not implemented.
-2. **Playwright** — Not integrated. Needed for JS-rendered travel sites.
-3. **Monitoring** — Sentry, Prometheus, Grafana not configured.
-4. **E2E tests** — No Playwright E2E tests for frontend.
-5. **Frontend test coverage** — Only lib utilities tested; component/hook tests not yet written.
+1. **Additional scrapers** — Only Google Flights implemented. Hotel and car rental scrapers not implemented.
+2. **Monitoring** — Sentry, Prometheus, Grafana not configured.
+3. **E2E tests** — No Playwright E2E tests for frontend.
+4. **Frontend test coverage** — Only lib utilities tested; component/hook tests not yet written.
+5. **Docker image size** — Chromium adds ~300-400MB to backend image. Consider multi-stage build.
 
 ## Agent Workflow Guidelines
 

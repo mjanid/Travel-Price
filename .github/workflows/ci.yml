@@ -55,6 +55,7 @@ jobs:
         working-directory: ./backend
         run: |
           pip install --no-cache-dir -e ".[dev]" psycopg2-binary
+          playwright install chromium --with-deps
 
       - name: Run tests with coverage
         working-directory: ./backend

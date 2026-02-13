@@ -1,20 +1,20 @@
-"""Google Flights scraper using httpx + BeautifulSoup.
+"""Google Flights scraper using Playwright for JS-rendered pages.
 
-Google Flights is a JavaScript-heavy site, so full production scraping
-would require Playwright (planned for Feature 5). This implementation
-provides the correct structure and parsing logic, and works with the
-httpx-based approach for testability with recorded/mocked responses.
+Google Flights is a JavaScript SPA — the HTML returned without JS
+rendering contains no flight data.  This scraper uses Playwright to
+launch headless Chromium, navigate to Google Flights, wait for results
+to render, and extract flight data from the live DOM.
 """
 
 from __future__ import annotations
 
-import json
+import asyncio
 import logging
 from datetime import datetime, timezone
 
-from bs4 import BeautifulSoup
+from playwright.async_api import Page
 
-from app.scrapers.base import BaseScraper
+from app.scrapers.playwright_base import PlaywrightBaseScraper
 from app.scrapers.types import PriceResult, ScrapeQuery
 
 logger = logging.getLogger(__name__)
@@ -22,34 +22,16 @@ logger = logging.getLogger(__name__)
 _GOOGLE_FLIGHTS_URL = "https://www.google.com/travel/flights"
 
 
-class GoogleFlightsScraper(BaseScraper):
+class GoogleFlightsScraper(PlaywrightBaseScraper):
     """Scraper for Google Flights search results.
 
-    Builds a Google Flights search URL from the query parameters,
-    fetches the page, and parses flight results from the HTML.
+    Navigates to a Google Flights search URL via Playwright, waits for
+    JS-rendered flight result cards, and extracts price / airline /
+    stops / time data from the live DOM.
     """
 
     provider_name = "google_flights"
-
-    async def scrape(self, query: ScrapeQuery) -> list[PriceResult]:
-        """Fetch and parse flight prices from Google Flights.
-
-        Args:
-            query: The scrape parameters with origin/destination/dates.
-
-        Returns:
-            List of PriceResult with parsed flight data.
-
-        Raises:
-            Exception: On HTTP errors or parsing failures (handled by
-                retry logic in BaseScraper).
-        """
-        url = self._build_search_url(query)
-        async with self._build_client() as client:
-            response = await client.get(url)
-            response.raise_for_status()
-
-        return self._parse_results(response.text, query)
+    page_timeout = 45_000  # Google Flights can be slow
 
     # Maps ScrapeQuery cabin_class values to Google Flights tfc parameter values.
     _CABIN_CLASS_MAP: dict[str, int] = {
@@ -58,6 +40,30 @@ class GoogleFlightsScraper(BaseScraper):
         "business": 3,
         "first": 4,
     }
+
+    async def scrape_page(
+        self, page: Page, query: ScrapeQuery
+    ) -> list[PriceResult]:
+        """Navigate to Google Flights and extract rendered results.
+
+        Args:
+            page: The Playwright Page (provided by PlaywrightBaseScraper).
+            query: The scrape parameters with origin/destination/dates.
+
+        Returns:
+            List of PriceResult with parsed flight data.
+        """
+        url = self._build_search_url(query)
+        await page.goto(url, wait_until="domcontentloaded")
+
+        # Dismiss cookie consent dialog if present
+        await self._dismiss_consent(page)
+
+        # Wait for flight results to render
+        await self._wait_for_results(page)
+
+        # Extract results from the rendered DOM
+        return await self._extract_results(page, query)
 
     def _build_search_url(self, query: ScrapeQuery) -> str:
         """Build the Google Flights search URL.
@@ -83,144 +89,170 @@ class GoogleFlightsScraper(BaseScraper):
             params += f"&tfc={cabin_code}"
         return f"{_GOOGLE_FLIGHTS_URL}{params}"
 
-    def _parse_results(
-        self, html: str, query: ScrapeQuery
-    ) -> list[PriceResult]:
-        """Parse flight results from HTML content.
-
-        Extracts flight data from structured elements in the page.
-        Falls back to meta/script tag parsing if primary selectors fail.
+    async def _dismiss_consent(self, page: Page) -> None:
+        """Dismiss Google cookie consent dialog if it appears.
 
         Args:
-            html: Raw HTML response body.
+            page: The Playwright Page.
+        """
+        try:
+            # Google consent dialog buttons — try common selectors
+            for selector in [
+                "button:has-text('Reject all')",
+                "button:has-text('Accept all')",
+                "[aria-label='Reject all']",
+                "[aria-label='Accept all']",
+            ]:
+                btn = page.locator(selector).first
+                if await btn.is_visible(timeout=2000):
+                    await btn.click()
+                    await asyncio.sleep(0.5)
+                    return
+        except Exception:
+            # Consent dialog didn't appear or selector failed — continue
+            pass
+
+    async def _wait_for_results(self, page: Page) -> None:
+        """Wait for flight result cards to render on the page.
+
+        Tries multiple selector strategies since Google Flights DOM
+        changes frequently.
+
+        Args:
+            page: The Playwright Page.
+        """
+        selectors = [
+            "[role='listitem']",
+            "li[data-resultid]",
+            "[data-price]",
+        ]
+        for selector in selectors:
+            try:
+                await page.wait_for_selector(selector, timeout=15_000)
+                return
+            except Exception:
+                continue
+
+        # Final fallback: wait for any price-like text to appear
+        try:
+            await page.wait_for_function(
+                "() => document.body.innerText.match(/\\$\\d+/)",
+                timeout=10_000,
+            )
+        except Exception:
+            logger.warning(
+                "%s: no flight results detected after waiting", self.provider_name
+            )
+
+    async def _extract_results(
+        self, page: Page, query: ScrapeQuery
+    ) -> list[PriceResult]:
+        """Extract flight results from the rendered DOM.
+
+        Uses page.evaluate() to run JS in the browser context and
+        return structured flight data.
+
+        Args:
+            page: The Playwright Page with rendered results.
             query: Original scrape parameters for context.
 
         Returns:
-            List of parsed PriceResult objects.
+            List of PriceResult parsed from the page.
         """
-        soup = BeautifulSoup(html, "lxml")
-        results: list[PriceResult] = []
         now = datetime.now(timezone.utc)
 
-        # Try structured data (JSON-LD) first
-        for script in soup.find_all("script", type="application/ld+json"):
-            try:
-                data = json.loads(script.string or "")
-                if isinstance(data, list):
-                    for item in data:
-                        result = self._parse_json_ld_offer(item, now)
-                        if result:
-                            results.append(result)
-                elif isinstance(data, dict):
-                    result = self._parse_json_ld_offer(data, now)
-                    if result:
-                        results.append(result)
-            except (json.JSONDecodeError, KeyError):
-                continue
+        # Extract data from the page via JS evaluation
+        raw_results = await page.evaluate("""
+            () => {
+                const results = [];
 
-        # Fallback: parse flight result cards by common CSS patterns
-        if not results:
-            results = self._parse_flight_cards(soup, query, now)
+                // Strategy 1: listitem elements (most common Google Flights structure)
+                const items = document.querySelectorAll("[role='listitem']");
+                for (const item of items) {
+                    const text = item.innerText || '';
 
-        return results
+                    // Extract price — look for $XXX pattern
+                    const priceMatch = text.match(/\\$(\\d[\\d,]*)/);
+                    if (!priceMatch) continue;
 
-    def _parse_json_ld_offer(
-        self, data: dict, scraped_at: datetime
-    ) -> PriceResult | None:
-        """Attempt to parse a JSON-LD offer into a PriceResult.
+                    const price = priceMatch[1].replace(/,/g, '');
 
-        Args:
-            data: Parsed JSON-LD data dict.
-            scraped_at: Timestamp for when this was scraped.
+                    // Extract airline — usually first line or prominent text
+                    const lines = text.split('\\n').map(l => l.trim()).filter(Boolean);
+                    let airline = null;
+                    for (const line of lines) {
+                        // Airline names are typically short text without $ or time patterns
+                        if (line.length > 2 && line.length < 40
+                            && !line.startsWith('$')
+                            && !line.match(/^\\d{1,2}:\\d{2}/)
+                            && !line.match(/stop/i)
+                            && !line.match(/^\\d+ hr/i)
+                            && !line.match(/^\\d+h/i)) {
+                            airline = line;
+                            break;
+                        }
+                    }
 
-        Returns:
-            PriceResult if the data represents a flight offer, else None.
-        """
-        if data.get("@type") not in ("Offer", "Flight", "FlightReservation"):
-            return None
+                    // Extract stops
+                    let stops = null;
+                    const stopsMatch = text.match(/Nonstop|Direct|(\\d+)\\s*stop/i);
+                    if (stopsMatch) {
+                        if (stopsMatch[0].toLowerCase().includes('nonstop')
+                            || stopsMatch[0].toLowerCase().includes('direct')) {
+                            stops = 0;
+                        } else {
+                            stops = parseInt(stopsMatch[1], 10);
+                        }
+                    }
 
-        price_value = data.get("price") or data.get("totalPrice")
-        if price_value is None:
-            offers = data.get("offers", [])
-            if offers and isinstance(offers, list):
-                price_value = offers[0].get("price")
-        if price_value is None:
-            return None
+                    // Extract departure time (HH:MM AM/PM pattern)
+                    let departureTime = null;
+                    let arrivalTime = null;
+                    const timeMatches = text.match(
+                        /\\d{1,2}:\\d{2}\\s*(?:AM|PM)/gi
+                    );
+                    if (timeMatches && timeMatches.length >= 1) {
+                        departureTime = timeMatches[0];
+                    }
+                    if (timeMatches && timeMatches.length >= 2) {
+                        arrivalTime = timeMatches[1];
+                    }
 
-        try:
-            price_cents = int(float(price_value) * 100)
-        except (ValueError, TypeError):
-            return None
+                    results.push({
+                        price: price,
+                        airline: airline,
+                        stops: stops,
+                        departureTime: departureTime,
+                        arrivalTime: arrivalTime,
+                    });
+                }
 
-        currency = (
-            data.get("priceCurrency")
-            or data.get("currency")
-            or "USD"
-        )
+                // Strategy 2: data-price attributes (fallback)
+                if (results.length === 0) {
+                    const priceEls = document.querySelectorAll('[data-price]');
+                    for (const el of priceEls) {
+                        const priceAttr = el.getAttribute('data-price');
+                        if (priceAttr) {
+                            results.push({
+                                price: priceAttr.replace(/[$,]/g, ''),
+                                airline: null,
+                                stops: null,
+                                departureTime: null,
+                                arrivalTime: null,
+                            });
+                        }
+                    }
+                }
 
-        return PriceResult(
-            provider=self.provider_name,
-            price=price_cents,
-            currency=currency,
-            cabin_class=data.get("cabinClass"),
-            airline=data.get("airline", {}).get("name") if isinstance(data.get("airline"), dict) else data.get("airline"),
-            stops=None,
-            raw_data=data,
-            scraped_at=scraped_at,
-        )
+                return results;
+            }
+        """)
 
-    def _parse_flight_cards(
-        self, soup: BeautifulSoup, query: ScrapeQuery, scraped_at: datetime
-    ) -> list[PriceResult]:
-        """Parse flight results from HTML card elements.
-
-        Uses common patterns found in Google Flights HTML structure.
-
-        Args:
-            soup: Parsed BeautifulSoup document.
-            query: Original scrape query for context.
-            scraped_at: Timestamp for when this was scraped.
-
-        Returns:
-            List of PriceResult parsed from card elements.
-        """
         results: list[PriceResult] = []
-
-        # Google Flights uses li elements with role="listitem" for results
-        cards = soup.select("[role='listitem']")
-        if not cards:
-            # Fallback: look for divs with price-like content
-            cards = soup.find_all("div", attrs={"data-price": True})
-
-        for card in cards:
-            price_text = card.get("data-price") or self._extract_price_text(card)
-            if not price_text:
-                continue
-
-            price_cents = self._parse_price_text(price_text)
+        for item in raw_results:
+            price_cents = self._parse_price_text(str(item.get("price", "")))
             if price_cents is None:
                 continue
-
-            airline_el = card.find(attrs={"data-airline": True}) or card.find(
-                class_=lambda c: c and "airline" in c.lower() if c else False
-            )
-            airline = None
-            if airline_el:
-                airline = airline_el.get("data-airline") or airline_el.get_text(strip=True)
-
-            stops_text = card.find(
-                string=lambda t: t and ("stop" in t.lower() or "nonstop" in t.lower()) if t else False
-            )
-            stops = None
-            if stops_text:
-                text = stops_text.strip().lower()
-                if "nonstop" in text or "direct" in text:
-                    stops = 0
-                else:
-                    try:
-                        stops = int("".join(c for c in text if c.isdigit()) or "0")
-                    except ValueError:
-                        pass
 
             results.append(
                 PriceResult(
@@ -228,36 +260,29 @@ class GoogleFlightsScraper(BaseScraper):
                     price=price_cents,
                     currency="USD",
                     cabin_class=query.cabin_class,
-                    airline=airline,
-                    stops=stops,
-                    raw_data={"html_snippet": str(card)[:500]},
-                    scraped_at=scraped_at,
+                    airline=item.get("airline"),
+                    stops=item.get("stops"),
+                    raw_data=item,
+                    scraped_at=now,
                 )
+            )
+
+        if not results:
+            logger.warning(
+                "%s: page loaded but no results extracted for %s -> %s",
+                self.provider_name,
+                query.origin,
+                query.destination,
             )
 
         return results
 
-    def _extract_price_text(self, element: object) -> str | None:
-        """Extract a price string from an element's text content.
-
-        Args:
-            element: A BeautifulSoup element.
-
-        Returns:
-            Price text string or None if not found.
-        """
-        text = element.get_text(" ", strip=True)
-        # Look for $XXX pattern
-        for word in text.split():
-            if word.startswith("$"):
-                return word
-        return None
-
     def _parse_price_text(self, text: str) -> int | None:
-        """Parse a price text string like '$234' or '234.50' into cents.
+        """Parse a price text string like '234' or '234.50' into cents.
 
         Args:
-            text: Price string to parse.
+            text: Price string to parse (already stripped of $ and commas
+                by the JS extraction).
 
         Returns:
             Price in cents or None if unparseable.

@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from_email: str = "alerts@travelprice.local"
 
+    # Playwright settings
+    playwright_headless: bool = True
+    playwright_timeout_ms: int = 45000
+    playwright_screenshot_on_failure: bool = False
+
     @field_validator("scrape_interval_minutes")
     @classmethod
     def validate_scrape_interval(cls, v: int) -> int:
