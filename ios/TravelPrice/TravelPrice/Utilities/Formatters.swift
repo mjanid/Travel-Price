@@ -37,6 +37,24 @@ enum Formatters {
         return f
     }()
 
+    /// Parses ISO 8601 datetime without timezone (e.g. "2026-02-13T17:05:13.615346").
+    /// Backend returns UTC datetimes without a trailing "Z".
+    private static let isoNoTzFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
+        return f
+    }()
+
+    private static let isoNoTzShortFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
+        return f
+    }()
+
     private static let displayDateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateStyle = .medium
@@ -59,8 +77,12 @@ enum Formatters {
     }()
 
     /// Parse ISO 8601 string to Date.
+    /// Handles formats with and without timezone, with and without fractional seconds.
     static func parseISO(_ string: String) -> Date? {
-        isoFormatter.date(from: string) ?? isoFormatterNoFrac.date(from: string)
+        isoFormatter.date(from: string)
+            ?? isoFormatterNoFrac.date(from: string)
+            ?? isoNoTzFormatter.date(from: string)
+            ?? isoNoTzShortFormatter.date(from: string)
     }
 
     /// Parse date-only string (yyyy-MM-dd) to Date.

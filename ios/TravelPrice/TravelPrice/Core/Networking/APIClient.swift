@@ -57,8 +57,9 @@ final class APIClient {
     }
 
     func delete(_ path: String) async throws {
-        let request = try buildRequest(path: path, method: "DELETE")
-        let (_, response) = try await session.data(for: request)
+        var request = try buildRequest(path: path, method: "DELETE")
+        await authorizeRequest(&request)
+        let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw APIError.networkError(URLError(.badServerResponse)) }
 
         if http.statusCode == 401 {
@@ -66,6 +67,9 @@ final class APIClient {
             throw APIError.unauthorized
         }
         guard (200...299).contains(http.statusCode) else {
+            if let detail = try? decoder.decode(DetailError.self, from: data) {
+                throw APIError.httpError(statusCode: http.statusCode, message: detail.detail)
+            }
             throw APIError.httpError(statusCode: http.statusCode, message: "Delete failed")
         }
     }
@@ -132,10 +136,14 @@ final class APIClient {
         }
 
         guard (200...299).contains(http.statusCode) else {
-            // Try to extract error messages from response
+            // Try to extract error messages from ApiResponse envelope
             if let apiResponse = try? decoder.decode(ApiResponse<EmptyData>.self, from: data),
                let errors = apiResponse.errors, !errors.isEmpty {
                 throw APIError.serverErrors(errors)
+            }
+            // FastAPI HTTPException returns {"detail": "message"}
+            if let detail = try? decoder.decode(DetailError.self, from: data) {
+                throw APIError.httpError(statusCode: http.statusCode, message: detail.detail)
             }
             throw APIError.httpError(statusCode: http.statusCode, message: nil)
         }
@@ -283,6 +291,11 @@ private struct AnyEncodable: Encodable {
 
 /// Empty placeholder for decoding error responses without a data field.
 struct EmptyData: Decodable {}
+
+/// FastAPI HTTPException error format: `{"detail": "message"}`.
+struct DetailError: Decodable {
+    let detail: String
+}
 
 /// Request body for token refresh.
 private struct RefreshRequest: Encodable {

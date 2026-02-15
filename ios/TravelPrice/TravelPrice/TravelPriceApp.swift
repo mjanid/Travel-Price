@@ -45,21 +45,16 @@ struct MainTabView: View {
     var body: some View {
         #if os(iOS)
         TabView {
-            Tab("Dashboard", systemImage: "square.grid.2x2") {
-                DashboardView()
-            }
-            Tab("Trips", systemImage: "airplane") {
-                TripListView()
-            }
-            Tab("Watches", systemImage: "eye") {
-                WatchListView()
-            }
-            Tab("Alerts", systemImage: "bell") {
-                AlertListView()
-            }
-            Tab("Settings", systemImage: "gear") {
-                SettingsView()
-            }
+            DashboardView()
+                .tabItem { Label("Dashboard", systemImage: "square.grid.2x2") }
+            TripListView()
+                .tabItem { Label("Trips", systemImage: "airplane") }
+            WatchListView()
+                .tabItem { Label("Watches", systemImage: "eye") }
+            AlertListView()
+                .tabItem { Label("Alerts", systemImage: "bell") }
+            SettingsView()
+                .tabItem { Label("Settings", systemImage: "gear") }
         }
         #else
         MacSidebarView()
