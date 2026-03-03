@@ -13,9 +13,7 @@ import logging
 import re
 from datetime import datetime, timezone
 
-from playwright.async_api import Page
-
-from app.scrapers.playwright_base import PlaywrightBaseScraper
+from app.scrapers.playwright_base import Page, PlaywrightBaseScraper
 from app.scrapers.types import PriceResult, ScrapeQuery
 
 logger = logging.getLogger(__name__)

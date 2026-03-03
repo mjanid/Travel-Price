@@ -18,9 +18,11 @@ from app.core.limiter import limiter
 async def lifespan(app: FastAPI):
     """Manage application startup and shutdown lifecycle."""
     yield
-    # Shutdown: close Playwright browser pool
-    from app.scrapers.playwright_base import _BrowserPool
-    await _BrowserPool.reset()
+    # Shutdown: close Playwright browser pool (if available)
+    from app.scrapers.playwright_base import PLAYWRIGHT_AVAILABLE
+    if PLAYWRIGHT_AVAILABLE:
+        from app.scrapers.playwright_base import _BrowserPool
+        await _BrowserPool.reset()
 
 
 def create_app() -> FastAPI:
