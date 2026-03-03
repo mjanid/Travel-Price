@@ -113,9 +113,11 @@ async def pg_session(pg_engine):
     """
     async with pg_engine.connect() as conn:
         transaction = await conn.begin()
-        session = AsyncSession(
-            bind=conn, expire_on_commit=False, join_transaction_block=True
-        )
+        session = AsyncSession(bind=conn, expire_on_commit=False)
+
+        # Start inside a SAVEPOINT so that session.commit() in route
+        # handlers releases the savepoint instead of the real transaction.
+        nested = await conn.begin_nested()
 
         # When the inner SAVEPOINT ends, automatically start a new one
         # so that successive commit() calls within the same test work.
