@@ -41,7 +41,7 @@ class AlertService:
         """Check new snapshots against active PriceWatches and send alerts.
 
         For each active watch on this trip, finds the lowest price among new
-        snapshots matching the watch's provider. If that price is at or below
+        snapshots matching the watch's provider. If that price is strictly below
         the target and the watch is not in cooldown, creates an alert and
         sends a notification.
 
@@ -75,7 +75,7 @@ class AlertService:
             # Find the lowest price snapshot for this provider
             best_snapshot = min(provider_snapshots, key=lambda s: s.price)
 
-            if best_snapshot.price > watch.target_price:
+            if best_snapshot.price >= watch.target_price:
                 continue
 
             if await self._is_in_cooldown(watch):

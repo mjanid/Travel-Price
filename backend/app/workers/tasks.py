@@ -42,7 +42,7 @@ async def _scrape_all_active_trips_async() -> dict:
 @celery_app.task(
     name="app.workers.tasks.scrape_single_trip",
     bind=True,
-    max_retries=2,
+    max_retries=3,
     default_retry_delay=60,
 )
 def scrape_single_trip(self, trip_id: str, user_id: str) -> dict:
@@ -61,7 +61,7 @@ def scrape_single_trip(self, trip_id: str, user_id: str) -> dict:
         logger.exception(
             "scrape_single_trip failed for trip %s: %s", trip_id, exc
         )
-        raise
+        raise self.retry(exc=exc)
 
 
 async def _scrape_single_trip_async(trip_id: str, user_id: str) -> dict:
