@@ -137,8 +137,8 @@ export const priceSnapshotResponseSchema = z.object({
 export function apiResponseSchema<T extends z.ZodType>(dataSchema: T) {
   return z.object({
     data: dataSchema.nullable(),
-    meta: z.object({ request_id: z.string().optional() }).optional(),
-    errors: z.array(z.string()).optional(),
+    meta: z.object({ request_id: z.string().optional() }).nullable().optional(),
+    errors: z.array(z.string()).nullable().optional(),
   });
 }
 
@@ -151,6 +151,6 @@ export function paginatedResponseSchema<T extends z.ZodType>(dataSchema: T) {
       total: z.number(),
       total_pages: z.number(),
     }),
-    errors: z.array(z.string()).optional(),
+    errors: z.array(z.string()).nullable().optional(),
   });
 }
