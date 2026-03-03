@@ -75,7 +75,7 @@ class AlertService:
             # Find the lowest price snapshot for this provider
             best_snapshot = min(provider_snapshots, key=lambda s: s.price)
 
-            if best_snapshot.price >= watch.target_price:
+            if best_snapshot.price > watch.target_price:
                 continue
 
             if await self._is_in_cooldown(watch):
