@@ -67,20 +67,29 @@ async def client(db_session: AsyncSession):
 
 
 @pytest.fixture(scope="session")
-def postgres_container():
-    """Start a disposable PostgreSQL 16 container for the test session."""
+def postgres_url():
+    """Return an asyncpg PostgreSQL connection URL.
+
+    In CI the ``DATABASE_URL`` environment variable already points to the
+    PostgreSQL service container provisioned by the GitHub Actions workflow,
+    so we reuse it directly.  Locally (when ``DATABASE_URL`` is unset or
+    points at SQLite) we fall back to spinning up a disposable container
+    via *testcontainers*.
+    """
+    env_url = os.environ.get("DATABASE_URL", "")
+    if env_url and "postgresql" in env_url:
+        # CI — reuse the pre-provisioned PostgreSQL service.
+        url = make_url(env_url)
+        yield str(url.set(drivername="postgresql+asyncpg"))
+        return
+
+    # Local development — start a throwaway PostgreSQL container.
     from testcontainers.postgres import PostgresContainer
 
     with PostgresContainer("postgres:16-alpine") as pg:
-        yield pg
-
-
-@pytest.fixture(scope="session")
-def postgres_url(postgres_container):
-    """Derive an asyncpg connection URL from the running container."""
-    sync_url = postgres_container.get_connection_url()
-    url = make_url(sync_url)
-    return str(url.set(drivername="postgresql+asyncpg"))
+        sync_url = pg.get_connection_url()
+        url = make_url(sync_url)
+        yield str(url.set(drivername="postgresql+asyncpg"))
 
 
 @pytest.fixture(scope="session")

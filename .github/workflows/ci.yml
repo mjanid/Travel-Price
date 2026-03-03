@@ -71,7 +71,7 @@ jobs:
         run: |
           pytest -m "not integration" --cov=app --cov-report=xml --cov-report=term
 
-      - name: Integration tests (PostgreSQL via testcontainers)
+      - name: Integration tests (PostgreSQL)
         working-directory: ./backend
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/travel_price_test
