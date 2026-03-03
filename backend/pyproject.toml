@@ -35,6 +35,8 @@ dev = [
     "coverage>=7.6.0",
     "respx>=0.21.0",
     "pytest-playwright>=0.6.0",
+    "testcontainers[postgres]>=4.0",
+    "psycopg2-binary>=2.9.0",
 ]
 
 [build-system]
@@ -43,7 +45,11 @@ build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
 testpaths = ["tests"]
+markers = [
+    "integration: tests requiring PostgreSQL (deselect with -m 'not integration')",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]

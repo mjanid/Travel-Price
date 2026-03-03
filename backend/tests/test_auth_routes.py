@@ -1,9 +1,13 @@
 """Integration tests for auth API endpoints."""
 
+import pytest
 
-async def test_register_success(client):
+pytestmark = pytest.mark.integration
+
+
+async def test_register_success(pg_client):
     """POST /register returns 201 with user data in envelope."""
-    response = await client.post(
+    response = await pg_client.post(
         "/api/v1/auth/register",
         json={
             "email": "new@example.com",
@@ -19,21 +23,21 @@ async def test_register_success(client):
     assert "id" in body["data"]
 
 
-async def test_register_duplicate_email(client):
+async def test_register_duplicate_email(pg_client):
     """POST /register with existing email returns 409."""
     payload = {
         "email": "dup@example.com",
         "password": "securepassword",
         "full_name": "First User",
     }
-    await client.post("/api/v1/auth/register", json=payload)
-    response = await client.post("/api/v1/auth/register", json=payload)
+    await pg_client.post("/api/v1/auth/register", json=payload)
+    response = await pg_client.post("/api/v1/auth/register", json=payload)
     assert response.status_code == 409
 
 
-async def test_register_invalid_email(client):
+async def test_register_invalid_email(pg_client):
     """POST /register with invalid email returns 422."""
-    response = await client.post(
+    response = await pg_client.post(
         "/api/v1/auth/register",
         json={
             "email": "not-an-email",
@@ -44,9 +48,9 @@ async def test_register_invalid_email(client):
     assert response.status_code == 422
 
 
-async def test_register_short_password(client):
+async def test_register_short_password(pg_client):
     """POST /register with short password returns 422."""
-    response = await client.post(
+    response = await pg_client.post(
         "/api/v1/auth/register",
         json={
             "email": "short@example.com",
@@ -57,9 +61,9 @@ async def test_register_short_password(client):
     assert response.status_code == 422
 
 
-async def test_login_success(client):
+async def test_login_success(pg_client):
     """POST /login returns tokens in envelope."""
-    await client.post(
+    await pg_client.post(
         "/api/v1/auth/register",
         json={
             "email": "login@example.com",
@@ -67,7 +71,7 @@ async def test_login_success(client):
             "full_name": "Login User",
         },
     )
-    response = await client.post(
+    response = await pg_client.post(
         "/api/v1/auth/login",
         json={"email": "login@example.com", "password": "securepassword"},
     )
@@ -78,9 +82,9 @@ async def test_login_success(client):
     assert body["data"]["token_type"] == "bearer"
 
 
-async def test_login_bad_credentials(client):
+async def test_login_bad_credentials(pg_client):
     """POST /login with wrong password returns 401."""
-    await client.post(
+    await pg_client.post(
         "/api/v1/auth/register",
         json={
             "email": "bad@example.com",
@@ -88,16 +92,16 @@ async def test_login_bad_credentials(client):
             "full_name": "Bad Creds",
         },
     )
-    response = await client.post(
+    response = await pg_client.post(
         "/api/v1/auth/login",
         json={"email": "bad@example.com", "password": "wrongpassword"},
     )
     assert response.status_code == 401
 
 
-async def test_refresh_success(client):
+async def test_refresh_success(pg_client):
     """POST /refresh with valid refresh token returns new tokens."""
-    await client.post(
+    await pg_client.post(
         "/api/v1/auth/register",
         json={
             "email": "refresh@example.com",
@@ -105,13 +109,13 @@ async def test_refresh_success(client):
             "full_name": "Refresh User",
         },
     )
-    login_resp = await client.post(
+    login_resp = await pg_client.post(
         "/api/v1/auth/login",
         json={"email": "refresh@example.com", "password": "securepassword"},
     )
     refresh_token = login_resp.json()["data"]["refresh_token"]
 
-    response = await client.post(
+    response = await pg_client.post(
         "/api/v1/auth/refresh",
         json={"refresh_token": refresh_token},
     )
@@ -119,18 +123,18 @@ async def test_refresh_success(client):
     assert response.json()["data"]["access_token"]
 
 
-async def test_refresh_invalid_token(client):
+async def test_refresh_invalid_token(pg_client):
     """POST /refresh with invalid token returns 401."""
-    response = await client.post(
+    response = await pg_client.post(
         "/api/v1/auth/refresh",
         json={"refresh_token": "garbage"},
     )
     assert response.status_code == 401
 
 
-async def test_me_authenticated(client):
+async def test_me_authenticated(pg_client):
     """GET /me with valid token returns user data."""
-    await client.post(
+    await pg_client.post(
         "/api/v1/auth/register",
         json={
             "email": "me@example.com",
@@ -138,13 +142,13 @@ async def test_me_authenticated(client):
             "full_name": "Me User",
         },
     )
-    login_resp = await client.post(
+    login_resp = await pg_client.post(
         "/api/v1/auth/login",
         json={"email": "me@example.com", "password": "securepassword"},
     )
     access_token = login_resp.json()["data"]["access_token"]
 
-    response = await client.get(
+    response = await pg_client.get(
         "/api/v1/auth/me",
         headers={"Authorization": f"Bearer {access_token}"},
     )
@@ -152,15 +156,15 @@ async def test_me_authenticated(client):
     assert response.json()["data"]["email"] == "me@example.com"
 
 
-async def test_me_unauthenticated(client):
+async def test_me_unauthenticated(pg_client):
     """GET /me without token returns 401."""
-    response = await client.get("/api/v1/auth/me")
+    response = await pg_client.get("/api/v1/auth/me")
     assert response.status_code == 401
 
 
-async def test_response_envelope_structure(client):
+async def test_response_envelope_structure(pg_client):
     """Responses follow the { data, meta, errors } envelope."""
-    response = await client.post(
+    response = await pg_client.post(
         "/api/v1/auth/register",
         json={
             "email": "envelope@example.com",
@@ -174,9 +178,9 @@ async def test_response_envelope_structure(client):
     assert "errors" in body
 
 
-async def test_update_profile_full_name(client):
+async def test_update_profile_full_name(pg_client):
     """PATCH /me updates the user's full name."""
-    await client.post(
+    await pg_client.post(
         "/api/v1/auth/register",
         json={
             "email": "update@example.com",
@@ -184,13 +188,13 @@ async def test_update_profile_full_name(client):
             "full_name": "Original Name",
         },
     )
-    login_resp = await client.post(
+    login_resp = await pg_client.post(
         "/api/v1/auth/login",
         json={"email": "update@example.com", "password": "securepassword"},
     )
     access_token = login_resp.json()["data"]["access_token"]
 
-    response = await client.patch(
+    response = await pg_client.patch(
         "/api/v1/auth/me",
         json={"full_name": "Updated Name"},
         headers={"Authorization": f"Bearer {access_token}"},
@@ -200,9 +204,9 @@ async def test_update_profile_full_name(client):
     assert response.json()["data"]["email"] == "update@example.com"
 
 
-async def test_update_profile_password(client):
+async def test_update_profile_password(pg_client):
     """PATCH /me updates the password; old password no longer works."""
-    await client.post(
+    await pg_client.post(
         "/api/v1/auth/register",
         json={
             "email": "pwchange@example.com",
@@ -210,13 +214,13 @@ async def test_update_profile_password(client):
             "full_name": "PW User",
         },
     )
-    login_resp = await client.post(
+    login_resp = await pg_client.post(
         "/api/v1/auth/login",
         json={"email": "pwchange@example.com", "password": "oldpassword1"},
     )
     access_token = login_resp.json()["data"]["access_token"]
 
-    response = await client.patch(
+    response = await pg_client.patch(
         "/api/v1/auth/me",
         json={"password": "newpassword1"},
         headers={"Authorization": f"Bearer {access_token}"},
@@ -224,32 +228,32 @@ async def test_update_profile_password(client):
     assert response.status_code == 200
 
     # Old password should fail
-    old_login = await client.post(
+    old_login = await pg_client.post(
         "/api/v1/auth/login",
         json={"email": "pwchange@example.com", "password": "oldpassword1"},
     )
     assert old_login.status_code == 401
 
     # New password should work
-    new_login = await client.post(
+    new_login = await pg_client.post(
         "/api/v1/auth/login",
         json={"email": "pwchange@example.com", "password": "newpassword1"},
     )
     assert new_login.status_code == 200
 
 
-async def test_update_profile_unauthenticated(client):
+async def test_update_profile_unauthenticated(pg_client):
     """PATCH /me without token returns 401."""
-    response = await client.patch(
+    response = await pg_client.patch(
         "/api/v1/auth/me",
         json={"full_name": "Hacker"},
     )
     assert response.status_code == 401
 
 
-async def test_update_profile_short_password(client):
+async def test_update_profile_short_password(pg_client):
     """PATCH /me with short password returns 422."""
-    await client.post(
+    await pg_client.post(
         "/api/v1/auth/register",
         json={
             "email": "shortpw@example.com",
@@ -257,13 +261,13 @@ async def test_update_profile_short_password(client):
             "full_name": "Short PW",
         },
     )
-    login_resp = await client.post(
+    login_resp = await pg_client.post(
         "/api/v1/auth/login",
         json={"email": "shortpw@example.com", "password": "securepassword"},
     )
     access_token = login_resp.json()["data"]["access_token"]
 
-    response = await client.patch(
+    response = await pg_client.patch(
         "/api/v1/auth/me",
         json={"password": "short"},
         headers={"Authorization": f"Bearer {access_token}"},
@@ -271,10 +275,10 @@ async def test_update_profile_short_password(client):
     assert response.status_code == 422
 
 
-async def test_full_auth_flow(client):
+async def test_full_auth_flow(pg_client):
     """Full flow: register -> login -> access /me -> refresh -> access /me."""
     # Register
-    reg_resp = await client.post(
+    reg_resp = await pg_client.post(
         "/api/v1/auth/register",
         json={
             "email": "flow@example.com",
@@ -285,14 +289,14 @@ async def test_full_auth_flow(client):
     assert reg_resp.status_code == 201
 
     # Login
-    login_resp = await client.post(
+    login_resp = await pg_client.post(
         "/api/v1/auth/login",
         json={"email": "flow@example.com", "password": "securepassword"},
     )
     tokens = login_resp.json()["data"]
 
     # Access /me
-    me_resp = await client.get(
+    me_resp = await pg_client.get(
         "/api/v1/auth/me",
         headers={"Authorization": f"Bearer {tokens['access_token']}"},
     )
@@ -300,7 +304,7 @@ async def test_full_auth_flow(client):
     assert me_resp.json()["data"]["email"] == "flow@example.com"
 
     # Refresh
-    refresh_resp = await client.post(
+    refresh_resp = await pg_client.post(
         "/api/v1/auth/refresh",
         json={"refresh_token": tokens["refresh_token"]},
     )
@@ -309,7 +313,7 @@ async def test_full_auth_flow(client):
     assert new_tokens["refresh_token"]
 
     # Access /me with new token
-    me_resp2 = await client.get(
+    me_resp2 = await pg_client.get(
         "/api/v1/auth/me",
         headers={"Authorization": f"Bearer {new_tokens['access_token']}"},
     )

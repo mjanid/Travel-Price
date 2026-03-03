@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -43,7 +43,7 @@ class ScheduledScrapeService:
             List of PriceWatch ORM objects that should be scraped.
         """
         now = datetime.now(timezone.utc)
-        today = date.today()
+        today = now.date()
         result = await self.db.execute(
             select(PriceWatch)
             .join(Trip, PriceWatch.trip_id == Trip.id)
