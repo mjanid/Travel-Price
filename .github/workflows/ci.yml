@@ -17,9 +17,6 @@ jobs:
     name: Backend Tests
     runs-on: ubuntu-latest
     
-    # NOTE: This services PostgreSQL is used for unit tests (app config
-    # validation requires a DATABASE_URL).  Integration tests create their
-    # own ephemeral PostgreSQL via testcontainers and ignore this instance.
     services:
       postgres:
         image: postgres:16-alpine
@@ -27,6 +24,7 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: travel_price_test
+          POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
         options: >-
@@ -61,10 +59,22 @@ jobs:
           pip install --no-cache-dir -e ".[dev]" psycopg2-binary
           playwright install chromium --with-deps
 
+      - name: Wait for Postgres TCP port
+        run: |
+          for i in $(seq 1 30); do
+            if nc -z 127.0.0.1 5432; then
+              echo "Postgres TCP open"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Postgres did not open port 5432" >&2
+          exit 1
+
       - name: Unit tests (fast, no Docker required)
         working-directory: ./backend
         env:
-          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/travel_price_test
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/travel_price_test
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: ci-test-secret-key-not-for-production
           DEBUG: "true"
@@ -74,7 +84,7 @@ jobs:
       - name: Integration tests (PostgreSQL)
         working-directory: ./backend
         env:
-          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/travel_price_test
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/travel_price_test
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: ci-test-secret-key-not-for-production
           DEBUG: "true"
