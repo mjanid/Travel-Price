@@ -2,8 +2,12 @@
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
+
+ALLOWED_PROVIDERS = Literal["google_flights"]
+ALLOWED_CURRENCIES = Literal["USD", "EUR", "GBP", "CAD", "AUD", "JPY", "INR", "BRL", "MXN"]
 
 
 class PriceWatchCreateRequest(BaseModel):
@@ -11,16 +15,16 @@ class PriceWatchCreateRequest(BaseModel):
 
     Attributes:
         trip_id: The trip to monitor.
-        provider: Scraper provider name.
+        provider: Scraper provider name (must match a registered scraper).
         target_price: Alert threshold in cents (must be positive).
-        currency: ISO 4217 currency code.
+        currency: ISO 4217 currency code (supported currencies only).
         alert_cooldown_hours: Minimum hours between alerts.
     """
 
     trip_id: uuid.UUID
-    provider: str = Field(default="google_flights", max_length=50)
+    provider: ALLOWED_PROVIDERS = "google_flights"
     target_price: int = Field(gt=0)
-    currency: str = Field(default="USD", min_length=3, max_length=3)
+    currency: ALLOWED_CURRENCIES = "USD"
     alert_cooldown_hours: int = Field(default=6, ge=1, le=168)
 
 

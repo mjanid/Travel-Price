@@ -41,7 +41,7 @@ class AlertService:
         """Check new snapshots against active PriceWatches and send alerts.
 
         For each active watch on this trip, finds the lowest price among new
-        snapshots matching the watch's provider. If that price is at or below
+        snapshots matching the watch's provider. If that price is strictly below
         the target and the watch is not in cooldown, creates an alert and
         sends a notification.
 

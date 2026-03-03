@@ -67,7 +67,8 @@ class PriceSnapshot(Base):
         default=lambda: datetime.now(timezone.utc),
     )
     created_at: Mapped[datetime] = mapped_column(
-        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
     )
 
     trip = relationship("Trip", backref="price_snapshots")

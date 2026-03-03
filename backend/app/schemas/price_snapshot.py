@@ -2,20 +2,24 @@
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
+
+ALLOWED_PROVIDERS = Literal["google_flights"]
+ALLOWED_CABIN_CLASSES = Literal["economy", "premium_economy", "business", "first"]
 
 
 class ScrapeRequest(BaseModel):
     """Schema for triggering a manual scrape.
 
     Attributes:
-        provider: Scraper provider to use.
+        provider: Scraper provider to use (must match a registered scraper).
         cabin_class: Desired cabin class.
     """
 
-    provider: str = Field(default="google_flights", max_length=50)
-    cabin_class: str = Field(default="economy", max_length=20)
+    provider: ALLOWED_PROVIDERS = "google_flights"
+    cabin_class: ALLOWED_CABIN_CLASSES = "economy"
 
 
 class PriceSnapshotResponse(BaseModel):

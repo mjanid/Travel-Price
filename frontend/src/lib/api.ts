@@ -36,29 +36,43 @@ function clearTokens(): void {
   localStorage.removeItem("refresh_token");
 }
 
-async function refreshAccessToken(): Promise<string | null> {
-  const { refresh } = getTokens();
-  if (!refresh) return null;
+let refreshPromise: Promise<string | null> | null = null;
 
-  try {
-    const res = await fetch(`${API_URL}/api/v1/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refresh }),
-    });
-    if (!res.ok) {
+async function refreshAccessToken(): Promise<string | null> {
+  // If a refresh is already in-flight, reuse the same promise so
+  // parallel 401 responses don't each trigger independent refresh calls.
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    const { refresh } = getTokens();
+    if (!refresh) return null;
+
+    try {
+      const res = await fetch(`${API_URL}/api/v1/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: refresh }),
+      });
+      if (!res.ok) {
+        clearTokens();
+        return null;
+      }
+      const json: ApiResponse<TokenResponse> = await res.json();
+      if (json.data) {
+        setTokens(json.data.access_token, json.data.refresh_token);
+        return json.data.access_token;
+      }
+      return null;
+    } catch {
       clearTokens();
       return null;
     }
-    const json: ApiResponse<TokenResponse> = await res.json();
-    if (json.data) {
-      setTokens(json.data.access_token, json.data.refresh_token);
-      return json.data.access_token;
-    }
-    return null;
-  } catch {
-    clearTokens();
-    return null;
+  })();
+
+  try {
+    return await refreshPromise;
+  } finally {
+    refreshPromise = null;
   }
 }
 
