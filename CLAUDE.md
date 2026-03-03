@@ -78,7 +78,7 @@ Travel-Price/
 │   │   │       └── google_flights.py  # Playwright-based Google Flights scraper
 │   │   ├── workers/
 │   │   │   ├── celery_app.py     # Celery config + Beat schedule
-│   │   │   ├── tasks.py          # scrape_all_active_trips, scrape_single_trip
+│   │   │   ├── tasks.py          # dispatch_due_scrapes, scrape_single_trip
 │   │   │   └── db.py             # Worker database session helper
 │   │   ├── notifications/
 │   │   │   ├── base.py           # NotificationPayload
@@ -89,7 +89,9 @@ Travel-Price/
 │   │   ├── script.py.mako
 │   │   └── versions/
 │   │       ├── 0001_initial_schema.py  # All 5 tables: users, trips, price_watches, price_snapshots, alerts
-│   │       └── 0002_create_price_watches_table.py  # Adds last_alerted_at column to price_watches
+│   │       ├── 0002_create_price_watches_table.py  # Adds last_alerted_at column to price_watches
+│   │       ├── 0003_make_timestamps_timezone_aware.py  # Convert all timestamps to timezone-aware
+│   │       └── 0004_add_scrape_interval_to_price_watches.py  # Per-watch scrape_interval_minutes + next_scrape_at
 │   ├── Dockerfile                # Backend container image
 │   ├── entrypoint.sh             # Runs migrations then starts server
 │   ├── tests/                    # 18 test files (~3200 lines)
@@ -171,7 +173,7 @@ Travel-Price/
 
 - **User** — id (UUID), email, hashed_password, full_name, is_active, timestamps
 - **Trip** — id (UUID), user_id (FK), origin/destination (IATA codes), dates, travelers, trip_type (enum: flight/hotel/car_rental), notes, timestamps
-- **PriceWatch** — id (UUID), user_id (FK), trip_id (FK), provider, target_price (cents), currency, is_active, alert_cooldown_hours, last_alerted_at, timestamps
+- **PriceWatch** — id (UUID), user_id (FK), trip_id (FK), provider, target_price (cents), currency, is_active, alert_cooldown_hours, scrape_interval_minutes (15-1440, default 60), next_scrape_at, last_alerted_at, timestamps
 - **PriceSnapshot** — id (UUID), trip_id (FK), user_id (FK), provider, price (cents), currency, cabin_class, airline, flight times, stops, raw_data (JSON), scraped_at, created_at
 - **Alert** — id (UUID), price_watch_id (FK), user_id (FK), price_snapshot_id (FK), alert_type, channel, status, target_price, triggered_price, message, sent_at, created_at
 
@@ -279,8 +281,10 @@ api/v1/trips.py  ->  services/trip_service.py  ->  models/trip.py  ->  PostgreSQ
 
 ### Alert System
 
-- Celery Beat schedules periodic scrape jobs per active PriceWatch
-- Workers fan out: `scrape_all_active_trips` -> individual `scrape_single_trip` tasks
+- Celery Beat runs `dispatch_due_scrapes` every 5 minutes
+- Dispatcher queries active watches where `next_scrape_at` is NULL or <= now()
+- Each due watch dispatches an individual `scrape_single_trip` task, then advances `next_scrape_at` by `scrape_interval_minutes`
+- Per-watch intervals configurable: 15-1440 minutes (default 60)
 - New price < target -> create Alert -> send email notification
 - Cooldown: max 1 alert per PriceWatch per 6 hours (configurable via `alert_cooldown_hours`)
 

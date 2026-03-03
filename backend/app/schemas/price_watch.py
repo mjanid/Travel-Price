@@ -19,6 +19,7 @@ class PriceWatchCreateRequest(BaseModel):
         target_price: Alert threshold in cents (must be positive).
         currency: ISO 4217 currency code (supported currencies only).
         alert_cooldown_hours: Minimum hours between alerts.
+        scrape_interval_minutes: How often to scrape (15-1440 minutes).
     """
 
     trip_id: uuid.UUID
@@ -26,6 +27,7 @@ class PriceWatchCreateRequest(BaseModel):
     target_price: int = Field(gt=0)
     currency: ALLOWED_CURRENCIES = "USD"
     alert_cooldown_hours: int = Field(default=6, ge=1, le=168)
+    scrape_interval_minutes: int = Field(default=60, ge=15, le=1440)
 
 
 class PriceWatchUpdateRequest(BaseModel):
@@ -34,6 +36,7 @@ class PriceWatchUpdateRequest(BaseModel):
     target_price: int | None = Field(default=None, gt=0)
     is_active: bool | None = None
     alert_cooldown_hours: int | None = Field(default=None, ge=1, le=168)
+    scrape_interval_minutes: int | None = Field(default=None, ge=15, le=1440)
 
 
 class PriceWatchResponse(BaseModel):
@@ -47,6 +50,8 @@ class PriceWatchResponse(BaseModel):
     currency: str
     is_active: bool
     alert_cooldown_hours: int
+    scrape_interval_minutes: int
+    next_scrape_at: datetime | None
     created_at: datetime
     updated_at: datetime
 

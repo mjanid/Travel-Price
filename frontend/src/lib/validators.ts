@@ -48,6 +48,12 @@ export const priceWatchCreateSchema = z.object({
     .positive("Target price must be greater than 0"),
   currency: z.string().length(3).default("USD"),
   alert_cooldown_hours: z.coerce.number().int().min(1).max(168).default(6),
+  scrape_interval_minutes: z.coerce
+    .number()
+    .int()
+    .min(15, "Minimum interval is 15 minutes")
+    .max(1440, "Maximum interval is 1440 minutes (24 hours)")
+    .default(60),
 });
 
 export type LoginFormData = z.infer<typeof loginSchema>;
@@ -96,6 +102,8 @@ export const priceWatchResponseSchema = z.object({
   currency: z.string(),
   is_active: z.boolean(),
   alert_cooldown_hours: z.number(),
+  scrape_interval_minutes: z.number(),
+  next_scrape_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });

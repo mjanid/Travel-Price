@@ -1,6 +1,7 @@
 """Test data factories."""
 
 import uuid
+from datetime import datetime, timezone
 
 from app.core.security import hash_password
 from app.models.price_watch import PriceWatch
@@ -47,6 +48,8 @@ def build_price_watch(
         "currency": "USD",
         "is_active": True,
         "alert_cooldown_hours": 6,
+        "scrape_interval_minutes": 60,
+        "next_scrape_at": datetime.now(timezone.utc),
     }
     defaults.update(overrides)
     return PriceWatch(**defaults)
