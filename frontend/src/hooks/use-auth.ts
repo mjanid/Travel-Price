@@ -12,6 +12,14 @@ import type {
   User,
 } from "@/lib/types";
 import { useAuthStore } from "@/stores/auth-store";
+import {
+  apiResponseSchema,
+  tokenResponseSchema,
+  userResponseSchema,
+} from "@/lib/validators";
+
+const tokenEnvelope = apiResponseSchema(tokenResponseSchema);
+const userEnvelope = apiResponseSchema(userResponseSchema);
 
 export function useLogin() {
   const { setTokens } = useAuthStore();
@@ -20,10 +28,11 @@ export function useLogin() {
 
   return useMutation({
     mutationFn: async (data: LoginRequest) => {
-      const res = await api.post<ApiResponse<TokenResponse>>(
+      const raw = await api.post<ApiResponse<TokenResponse>>(
         "/api/v1/auth/login",
         data,
       );
+      const res = tokenEnvelope.parse(raw);
       if (!res.data) throw new Error("Invalid login response");
       return res.data;
     },
@@ -43,12 +52,13 @@ export function useRegister() {
   return useMutation({
     mutationFn: async (data: RegisterRequest) => {
       await api.post<ApiResponse<User>>("/api/v1/auth/register", data);
-      const loginRes = await api.post<ApiResponse<TokenResponse>>(
+      const raw = await api.post<ApiResponse<TokenResponse>>(
         "/api/v1/auth/login",
         { email: data.email, password: data.password },
       );
-      if (!loginRes.data) throw new Error("Invalid login response");
-      return loginRes.data;
+      const res = tokenEnvelope.parse(raw);
+      if (!res.data) throw new Error("Invalid login response");
+      return res.data;
     },
     onSuccess: (data) => {
       setTokens(data.access_token, data.refresh_token);
@@ -64,10 +74,11 @@ export function useCurrentUser() {
   return useQuery({
     queryKey: ["currentUser"],
     queryFn: async () => {
-      const res = await api.get<ApiResponse<User>>("/api/v1/auth/me");
+      const raw = await api.get<ApiResponse<User>>("/api/v1/auth/me");
+      const res = userEnvelope.parse(raw);
       if (!res.data) throw new Error("Invalid user response");
-      setUser(res.data);
-      return res.data;
+      setUser(res.data as User);
+      return res.data as User;
     },
     enabled: isAuthenticated,
     staleTime: 5 * 60 * 1000,
@@ -80,12 +91,13 @@ export function useUpdateProfile() {
 
   return useMutation({
     mutationFn: async (data: UpdateProfileRequest) => {
-      const res = await api.patch<ApiResponse<User>>(
+      const raw = await api.patch<ApiResponse<User>>(
         "/api/v1/auth/me",
         data,
       );
+      const res = userEnvelope.parse(raw);
       if (!res.data) throw new Error("Invalid profile response");
-      return res.data;
+      return res.data as User;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["currentUser"] });
@@ -98,7 +110,12 @@ export function useLogout() {
   const queryClient = useQueryClient();
   const router = useRouter();
 
-  return () => {
+  return async () => {
+    try {
+      await api.post("/api/v1/auth/logout");
+    } catch {
+      // Best-effort: clear local state even if server call fails
+    }
     logout();
     queryClient.clear();
     router.push("/login");

@@ -14,6 +14,7 @@ from app.models.trip import Trip
 from app.scrapers.registry import get_scraper
 from app.scrapers.types import PriceResult, ScrapeError, ScrapeQuery
 from app.schemas.price_snapshot import PriceSnapshotResponse
+from app.services.alert_service import AlertService
 
 
 class ScraperService:
@@ -77,8 +78,13 @@ class ScraperService:
                 detail=f"Scraping failed: {exc}",
             )
 
-        snapshots = await self._store_results(results, trip_id, user_id)
-        return snapshots
+        orm_snapshots = await self._store_results(results, trip_id, user_id)
+
+        # Check new snapshots against active price watches
+        alert_service = AlertService(self.db)
+        await alert_service.check_and_alert(trip_id, user_id, orm_snapshots)
+
+        return [PriceSnapshotResponse.model_validate(s) for s in orm_snapshots]
 
     async def get_price_history(
         self,
@@ -135,7 +141,7 @@ class ScraperService:
         results: list[PriceResult],
         trip_id: uuid.UUID,
         user_id: uuid.UUID,
-    ) -> list[PriceSnapshotResponse]:
+    ) -> list[PriceSnapshot]:
         """Store scrape results as PriceSnapshot records.
 
         Args:
@@ -144,7 +150,7 @@ class ScraperService:
             user_id: Associated user ID.
 
         Returns:
-            List of stored PriceSnapshotResponse objects.
+            List of stored PriceSnapshot ORM objects.
         """
         orm_snapshots: list[PriceSnapshot] = []
         for result in results:
@@ -179,7 +185,7 @@ class ScraperService:
             for snap in orm_snapshots:
                 await self.db.refresh(snap)
 
-        return [PriceSnapshotResponse.model_validate(s) for s in orm_snapshots]
+        return orm_snapshots
 
     async def _get_trip_or_404(self, user_id: uuid.UUID, trip_id: uuid.UUID) -> Trip:
         """Fetch a trip by ID scoped to the given user.

@@ -122,6 +122,20 @@ class AuthService:
             refresh_token=create_refresh_token(user.id),
         )
 
+    async def logout(self, user: User) -> None:
+        """Log out the current user.
+
+        In a stateless JWT setup, the client is responsible for discarding
+        tokens. This method exists as a server-side hook for future token
+        revocation (e.g. Redis blocklist) and audit logging.
+
+        Args:
+            user: The authenticated User ORM instance.
+        """
+        # Placeholder: when Redis blocklist is added, the access/refresh
+        # tokens would be added here with their remaining TTL.
+        pass
+
     async def update_profile(
         self, user: User, payload: UserUpdateRequest
     ) -> UserResponse:

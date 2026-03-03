@@ -11,21 +11,34 @@ import type {
   TripCreateRequest,
   TripUpdateRequest,
 } from "@/lib/types";
+import {
+  apiResponseSchema,
+  paginatedResponseSchema,
+  tripResponseSchema,
+} from "@/lib/validators";
+
+const tripListSchema = paginatedResponseSchema(tripResponseSchema);
+const tripDetailSchema = apiResponseSchema(tripResponseSchema);
 
 export function useTrips(page = 1, perPage = 20) {
   return useQuery({
     queryKey: ["trips", page, perPage],
-    queryFn: () =>
-      api.get<PaginatedResponse<Trip>>(
+    queryFn: async () => {
+      const raw = await api.get<PaginatedResponse<Trip>>(
         `/api/v1/trips/?page=${page}&per_page=${perPage}`,
-      ),
+      );
+      return tripListSchema.parse(raw) as PaginatedResponse<Trip>;
+    },
   });
 }
 
 export function useTrip(id: string) {
   return useQuery({
     queryKey: ["trip", id],
-    queryFn: () => api.get<ApiResponse<Trip>>(`/api/v1/trips/${id}`),
+    queryFn: async () => {
+      const raw = await api.get<ApiResponse<Trip>>(`/api/v1/trips/${id}`);
+      return tripDetailSchema.parse(raw) as ApiResponse<Trip>;
+    },
     enabled: !!id,
   });
 }
@@ -35,8 +48,10 @@ export function useCreateTrip() {
   const router = useRouter();
 
   return useMutation({
-    mutationFn: (data: TripCreateRequest) =>
-      api.post<ApiResponse<Trip>>("/api/v1/trips/", data),
+    mutationFn: async (data: TripCreateRequest) => {
+      const raw = await api.post<ApiResponse<Trip>>("/api/v1/trips/", data);
+      return tripDetailSchema.parse(raw) as ApiResponse<Trip>;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["trips"] });
       toast.success("Trip created successfully");
@@ -50,8 +65,10 @@ export function useUpdateTrip(id: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: TripUpdateRequest) =>
-      api.patch<ApiResponse<Trip>>(`/api/v1/trips/${id}`, data),
+    mutationFn: async (data: TripUpdateRequest) => {
+      const raw = await api.patch<ApiResponse<Trip>>(`/api/v1/trips/${id}`, data);
+      return tripDetailSchema.parse(raw) as ApiResponse<Trip>;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["trips"] });
       queryClient.invalidateQueries({ queryKey: ["trip", id] });
