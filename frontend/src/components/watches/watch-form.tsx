@@ -12,12 +12,24 @@ interface WatchFormProps {
   onSuccess?: () => void;
 }
 
+const INTERVAL_OPTIONS = [
+  { value: "15", label: "15 min" },
+  { value: "30", label: "30 min" },
+  { value: "60", label: "1 hour" },
+  { value: "120", label: "2 hours" },
+  { value: "240", label: "4 hours" },
+  { value: "480", label: "8 hours" },
+  { value: "720", label: "12 hours" },
+  { value: "1440", label: "24 hours" },
+];
+
 export function WatchForm({ tripId, onSuccess }: WatchFormProps) {
   const createWatch = useCreateWatch();
   const [form, setForm] = useState({
     target_price: "",
     provider: "google_flights",
     alert_cooldown_hours: "6",
+    scrape_interval_minutes: "60",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -30,6 +42,7 @@ export function WatchForm({ tripId, onSuccess }: WatchFormProps) {
       target_price: form.target_price,
       provider: form.provider,
       alert_cooldown_hours: form.alert_cooldown_hours,
+      scrape_interval_minutes: form.scrape_interval_minutes,
     });
 
     if (!result.success) {
@@ -67,7 +80,7 @@ export function WatchForm({ tripId, onSuccess }: WatchFormProps) {
             {errors.form}
           </p>
         )}
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Input
             label="Target price ($)"
             type="number"
@@ -99,6 +112,15 @@ export function WatchForm({ tripId, onSuccess }: WatchFormProps) {
               setForm({ ...form, alert_cooldown_hours: e.target.value })
             }
             error={errors.alert_cooldown_hours}
+          />
+          <Select
+            label="Check interval"
+            value={form.scrape_interval_minutes}
+            onChange={(e) =>
+              setForm({ ...form, scrape_interval_minutes: e.target.value })
+            }
+            options={INTERVAL_OPTIONS}
+            error={errors.scrape_interval_minutes}
           />
         </div>
         <Button type="submit" size="sm" loading={createWatch.isPending}>

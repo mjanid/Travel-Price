@@ -3,6 +3,7 @@
 import uuid
 from datetime import date, datetime, timezone
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +14,8 @@ from app.models.price_watch import PriceWatch
 from app.models.trip import Trip
 from app.models.user import User
 from tests.factories import build_user
+
+pytestmark = pytest.mark.integration
 
 
 async def _setup_with_alert(
@@ -79,11 +82,11 @@ async def _setup_with_alert(
     return user, f"Bearer {token}", alert
 
 
-async def test_list_alerts(client: AsyncClient, db_session: AsyncSession):
+async def test_list_alerts(pg_client: AsyncClient, pg_session: AsyncSession):
     """GET /alerts/ returns paginated alerts for the user."""
-    user, auth, alert = await _setup_with_alert(db_session)
+    user, auth, alert = await _setup_with_alert(pg_session)
 
-    resp = await client.get(
+    resp = await pg_client.get(
         "/api/v1/alerts/", headers={"Authorization": auth}
     )
     assert resp.status_code == 200
@@ -92,17 +95,17 @@ async def test_list_alerts(client: AsyncClient, db_session: AsyncSession):
     assert data["data"][0]["id"] == str(alert.id)
 
 
-async def test_list_alerts_unauthenticated(client: AsyncClient):
+async def test_list_alerts_unauthenticated(pg_client: AsyncClient):
     """GET /alerts/ requires authentication."""
-    resp = await client.get("/api/v1/alerts/")
+    resp = await pg_client.get("/api/v1/alerts/")
     assert resp.status_code == 401
 
 
-async def test_get_alert(client: AsyncClient, db_session: AsyncSession):
+async def test_get_alert(pg_client: AsyncClient, pg_session: AsyncSession):
     """GET /alerts/{id} returns a single alert."""
-    user, auth, alert = await _setup_with_alert(db_session)
+    user, auth, alert = await _setup_with_alert(pg_session)
 
-    resp = await client.get(
+    resp = await pg_client.get(
         f"/api/v1/alerts/{alert.id}", headers={"Authorization": auth}
     )
     assert resp.status_code == 200
@@ -110,21 +113,21 @@ async def test_get_alert(client: AsyncClient, db_session: AsyncSession):
     assert resp.json()["data"]["triggered_price"] == 25000
 
 
-async def test_get_alert_not_found(client: AsyncClient, db_session: AsyncSession):
+async def test_get_alert_not_found(pg_client: AsyncClient, pg_session: AsyncSession):
     """GET /alerts/{id} returns 404 for nonexistent alert."""
-    user, auth, _ = await _setup_with_alert(db_session)
+    user, auth, _ = await _setup_with_alert(pg_session)
 
-    resp = await client.get(
+    resp = await pg_client.get(
         f"/api/v1/alerts/{uuid.uuid4()}", headers={"Authorization": auth}
     )
     assert resp.status_code == 404
 
 
-async def test_list_watch_alerts(client: AsyncClient, db_session: AsyncSession):
+async def test_list_watch_alerts(pg_client: AsyncClient, pg_session: AsyncSession):
     """GET /watches/{id}/alerts returns alerts for that watch."""
-    user, auth, alert = await _setup_with_alert(db_session)
+    user, auth, alert = await _setup_with_alert(pg_session)
 
-    resp = await client.get(
+    resp = await pg_client.get(
         f"/api/v1/watches/{alert.price_watch_id}/alerts",
         headers={"Authorization": auth},
     )

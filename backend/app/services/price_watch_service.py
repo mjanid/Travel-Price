@@ -1,6 +1,7 @@
 """Business logic for price watch management."""
 
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
@@ -56,6 +57,8 @@ class PriceWatchService:
             target_price=payload.target_price,
             currency=payload.currency,
             alert_cooldown_hours=payload.alert_cooldown_hours,
+            scrape_interval_minutes=payload.scrape_interval_minutes,
+            next_scrape_at=datetime.now(timezone.utc),
         )
         self.db.add(watch)
         await self.db.flush()
@@ -141,6 +144,12 @@ class PriceWatchService:
         update_data = payload.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(watch, field, value)
+
+        # Recalculate next_scrape_at when interval changes
+        if "scrape_interval_minutes" in update_data:
+            watch.next_scrape_at = datetime.now(timezone.utc) + timedelta(
+                minutes=watch.scrape_interval_minutes
+            )
 
         await self.db.flush()
         await self.db.refresh(watch)

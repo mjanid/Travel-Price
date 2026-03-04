@@ -20,13 +20,13 @@ def test_celery_app_uses_utc():
     assert celery_app.conf.enable_utc is True
 
 
-def test_celery_beat_schedule_contains_scrape_task():
-    """Beat schedule includes the scrape-active-trips entry."""
-    assert "scrape-active-trips" in celery_app.conf.beat_schedule
-    entry = celery_app.conf.beat_schedule["scrape-active-trips"]
-    assert entry["task"] == "app.workers.tasks.scrape_all_active_trips"
+def test_celery_beat_schedule_contains_dispatch_task():
+    """Beat schedule includes the dispatch-due-scrapes entry running every 5 min."""
+    assert "dispatch-due-scrapes" in celery_app.conf.beat_schedule
+    entry = celery_app.conf.beat_schedule["dispatch-due-scrapes"]
+    assert entry["task"] == "app.workers.tasks.dispatch_due_scrapes"
     assert isinstance(entry["schedule"], (int, float))
-    assert entry["schedule"] > 0
+    assert entry["schedule"] == 300.0
 
 
 def test_celery_tasks_are_registered():
@@ -35,7 +35,7 @@ def test_celery_tasks_are_registered():
     import app.workers.tasks  # noqa: F401
 
     task_names = list(celery_app.tasks.keys())
-    assert "app.workers.tasks.scrape_all_active_trips" in task_names
+    assert "app.workers.tasks.dispatch_due_scrapes" in task_names
     assert "app.workers.tasks.scrape_single_trip" in task_names
 
 

@@ -8,7 +8,15 @@ import random
 from abc import abstractmethod
 from contextlib import asynccontextmanager
 
-from playwright.async_api import Browser, BrowserContext, Page, async_playwright
+try:
+    from playwright.async_api import Browser, BrowserContext, Page, async_playwright
+    PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    PLAYWRIGHT_AVAILABLE = False
+    Browser = None  # type: ignore[assignment,misc]
+    BrowserContext = None  # type: ignore[assignment,misc]
+    Page = None  # type: ignore[assignment,misc]
+    async_playwright = None  # type: ignore[assignment]
 
 from app.scrapers.base import BaseScraper, _USER_AGENTS
 from app.scrapers.types import PriceResult, ScrapeQuery
@@ -111,6 +119,15 @@ class PlaywrightBaseScraper(BaseScraper):
     """
 
     page_timeout: float = 60_000  # milliseconds
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        if not PLAYWRIGHT_AVAILABLE:
+            raise RuntimeError(
+                "Playwright is not installed. "
+                "This scraper requires the 'scraping' extra: "
+                "pip install '.[scraping]'"
+            )
+        super().__init__(*args, **kwargs)
 
     @abstractmethod
     async def scrape_page(

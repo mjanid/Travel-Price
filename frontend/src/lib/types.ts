@@ -78,6 +78,8 @@ export interface PriceWatch {
   currency: string;
   is_active: boolean;
   alert_cooldown_hours: number;
+  scrape_interval_minutes: number;
+  next_scrape_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -88,12 +90,14 @@ export interface PriceWatchCreateRequest {
   target_price: number;
   currency?: string;
   alert_cooldown_hours?: number;
+  scrape_interval_minutes?: number;
 }
 
 export interface PriceWatchUpdateRequest {
   target_price?: number;
   is_active?: boolean;
   alert_cooldown_hours?: number;
+  scrape_interval_minutes?: number;
 }
 
 export interface Alert {

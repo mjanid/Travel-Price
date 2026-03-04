@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from datetime import date, datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.price_snapshot import PriceSnapshot
+from app.models.price_watch import PriceWatch
 from app.models.trip import Trip
 from app.scrapers.registry import get_scraper
 from app.scrapers.types import PriceResult, ScrapeError, ScrapeQuery
@@ -31,19 +32,42 @@ class ScheduledScrapeService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def get_active_trip_ids(self) -> list[tuple[uuid.UUID, uuid.UUID]]:
-        """Return (trip_id, user_id) tuples for trips with future departure dates.
+    async def get_due_watches(self) -> list[PriceWatch]:
+        """Return active watches that are due for scraping.
+
+        A watch is due when next_scrape_at is NULL (never scraped) or
+        next_scrape_at <= now().  Only includes watches for trips whose
+        departure date has not yet passed.
 
         Returns:
-            List of (trip_id, user_id) tuples for active trips.
+            List of PriceWatch ORM objects that should be scraped.
         """
-        today = date.today()
+        now = datetime.now(timezone.utc)
+        today = now.date()
         result = await self.db.execute(
-            select(Trip.id, Trip.user_id)
-            .where(Trip.departure_date >= today)
-            .order_by(Trip.created_at)
+            select(PriceWatch)
+            .join(Trip, PriceWatch.trip_id == Trip.id)
+            .where(
+                PriceWatch.is_active.is_(True),
+                Trip.departure_date >= today,
+                or_(
+                    PriceWatch.next_scrape_at.is_(None),
+                    PriceWatch.next_scrape_at <= now,
+                ),
+            )
+            .order_by(PriceWatch.created_at)
         )
-        return [(row.id, row.user_id) for row in result.all()]
+        return list(result.scalars().all())
+
+    async def mark_dispatched(self, watch: PriceWatch) -> None:
+        """Set next_scrape_at to now + watch's interval after dispatching.
+
+        Args:
+            watch: The PriceWatch that was just dispatched.
+        """
+        now = datetime.now(timezone.utc)
+        watch.next_scrape_at = now + timedelta(minutes=watch.scrape_interval_minutes)
+        await self.db.flush()
 
     async def scrape_trip_background(
         self,

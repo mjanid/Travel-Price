@@ -4,7 +4,11 @@ import uuid
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 from app.scrapers.types import PriceResult, ScrapeError
+
+pytestmark = pytest.mark.integration
 
 
 VALID_TRIP = {
@@ -17,9 +21,9 @@ VALID_TRIP = {
 }
 
 
-async def _register_and_login(client, email="price@example.com"):
+async def _register_and_login(pg_client, email="price@example.com"):
     """Helper to register a user and return access token."""
-    await client.post(
+    await pg_client.post(
         "/api/v1/auth/register",
         json={
             "email": email,
@@ -27,7 +31,7 @@ async def _register_and_login(client, email="price@example.com"):
             "full_name": "Price Tester",
         },
     )
-    resp = await client.post(
+    resp = await pg_client.post(
         "/api/v1/auth/login",
         json={"email": email, "password": "securepassword"},
     )
@@ -38,9 +42,9 @@ def _auth_header(token):
     return {"Authorization": f"Bearer {token}"}
 
 
-async def _create_trip(client, token):
+async def _create_trip(pg_client, token):
     """Create a trip and return its ID."""
-    resp = await client.post(
+    resp = await pg_client.post(
         "/api/v1/trips/",
         json=VALID_TRIP,
         headers=_auth_header(token),
@@ -64,16 +68,16 @@ def _mock_results():
     ]
 
 
-async def test_scrape_trip_success(client):
+async def test_scrape_trip_success(pg_client):
     """POST /trips/{id}/scrape returns 201 with scraped data."""
-    token = await _register_and_login(client)
-    trip_id = await _create_trip(client, token)
+    token = await _register_and_login(pg_client)
+    trip_id = await _create_trip(pg_client, token)
 
     mock_scraper = AsyncMock()
     mock_scraper.execute.return_value = _mock_results()
 
     with patch("app.services.scraper_service.get_scraper", return_value=mock_scraper):
-        resp = await client.post(
+        resp = await pg_client.post(
             f"/api/v1/trips/{trip_id}/scrape",
             json={"provider": "google_flights", "cabin_class": "economy"},
             headers=_auth_header(token),
@@ -87,16 +91,16 @@ async def test_scrape_trip_success(client):
     assert body["data"][0]["airline"] == "Delta"
 
 
-async def test_scrape_trip_default_params(client):
+async def test_scrape_trip_default_params(pg_client):
     """POST /trips/{id}/scrape works with empty body (defaults)."""
-    token = await _register_and_login(client)
-    trip_id = await _create_trip(client, token)
+    token = await _register_and_login(pg_client)
+    trip_id = await _create_trip(pg_client, token)
 
     mock_scraper = AsyncMock()
     mock_scraper.execute.return_value = _mock_results()
 
     with patch("app.services.scraper_service.get_scraper", return_value=mock_scraper):
-        resp = await client.post(
+        resp = await pg_client.post(
             f"/api/v1/trips/{trip_id}/scrape",
             headers=_auth_header(token),
         )
@@ -104,12 +108,12 @@ async def test_scrape_trip_default_params(client):
     assert resp.status_code == 201
 
 
-async def test_scrape_trip_not_found(client):
+async def test_scrape_trip_not_found(pg_client):
     """POST /trips/{id}/scrape returns 404 for non-existent trip."""
-    token = await _register_and_login(client)
+    token = await _register_and_login(pg_client)
     fake_id = str(uuid.uuid4())
 
-    resp = await client.post(
+    resp = await pg_client.post(
         f"/api/v1/trips/{fake_id}/scrape",
         json={"provider": "google_flights"},
         headers=_auth_header(token),
@@ -117,19 +121,19 @@ async def test_scrape_trip_not_found(client):
     assert resp.status_code == 404
 
 
-async def test_scrape_trip_unauthenticated(client):
+async def test_scrape_trip_unauthenticated(pg_client):
     """POST /trips/{id}/scrape without token returns 401."""
     fake_id = str(uuid.uuid4())
-    resp = await client.post(f"/api/v1/trips/{fake_id}/scrape")
+    resp = await pg_client.post(f"/api/v1/trips/{fake_id}/scrape")
     assert resp.status_code == 401
 
 
-async def test_scrape_trip_unknown_provider(client):
+async def test_scrape_trip_unknown_provider(pg_client):
     """POST /trips/{id}/scrape with unknown provider returns 422."""
-    token = await _register_and_login(client)
-    trip_id = await _create_trip(client, token)
+    token = await _register_and_login(pg_client)
+    trip_id = await _create_trip(pg_client, token)
 
-    resp = await client.post(
+    resp = await pg_client.post(
         f"/api/v1/trips/{trip_id}/scrape",
         json={"provider": "nonexistent_provider"},
         headers=_auth_header(token),
@@ -137,16 +141,16 @@ async def test_scrape_trip_unknown_provider(client):
     assert resp.status_code == 422
 
 
-async def test_scrape_trip_scraper_failure(client):
+async def test_scrape_trip_scraper_failure(pg_client):
     """POST /trips/{id}/scrape returns 502 on scraper failure."""
-    token = await _register_and_login(client)
-    trip_id = await _create_trip(client, token)
+    token = await _register_and_login(pg_client)
+    trip_id = await _create_trip(pg_client, token)
 
     mock_scraper = AsyncMock()
     mock_scraper.execute.side_effect = ScrapeError("google_flights", "Timeout", 3)
 
     with patch("app.services.scraper_service.get_scraper", return_value=mock_scraper):
-        resp = await client.post(
+        resp = await pg_client.post(
             f"/api/v1/trips/{trip_id}/scrape",
             json={"provider": "google_flights"},
             headers=_auth_header(token),
@@ -155,12 +159,12 @@ async def test_scrape_trip_scraper_failure(client):
     assert resp.status_code == 502
 
 
-async def test_get_price_history_empty(client):
+async def test_get_price_history_empty(pg_client):
     """GET /trips/{id}/prices returns empty list when no snapshots."""
-    token = await _register_and_login(client)
-    trip_id = await _create_trip(client, token)
+    token = await _register_and_login(pg_client)
+    trip_id = await _create_trip(pg_client, token)
 
-    resp = await client.get(
+    resp = await pg_client.get(
         f"/api/v1/trips/{trip_id}/prices",
         headers=_auth_header(token),
     )
@@ -170,22 +174,22 @@ async def test_get_price_history_empty(client):
     assert body["meta"]["total"] == 0
 
 
-async def test_get_price_history_after_scrape(client):
+async def test_get_price_history_after_scrape(pg_client):
     """GET /trips/{id}/prices returns data after a scrape."""
-    token = await _register_and_login(client)
-    trip_id = await _create_trip(client, token)
+    token = await _register_and_login(pg_client)
+    trip_id = await _create_trip(pg_client, token)
 
     mock_scraper = AsyncMock()
     mock_scraper.execute.return_value = _mock_results()
 
     with patch("app.services.scraper_service.get_scraper", return_value=mock_scraper):
-        await client.post(
+        await pg_client.post(
             f"/api/v1/trips/{trip_id}/scrape",
             json={"provider": "google_flights"},
             headers=_auth_header(token),
         )
 
-    resp = await client.get(
+    resp = await pg_client.get(
         f"/api/v1/trips/{trip_id}/prices",
         headers=_auth_header(token),
     )
@@ -195,10 +199,10 @@ async def test_get_price_history_after_scrape(client):
     assert body["data"][0]["price"] == 25000
 
 
-async def test_get_price_history_pagination(client):
+async def test_get_price_history_pagination(pg_client):
     """GET /trips/{id}/prices respects pagination params."""
-    token = await _register_and_login(client)
-    trip_id = await _create_trip(client, token)
+    token = await _register_and_login(pg_client)
+    trip_id = await _create_trip(pg_client, token)
 
     mock_scraper = AsyncMock()
     now = datetime.now(timezone.utc)
@@ -213,13 +217,13 @@ async def test_get_price_history_pagination(client):
     ]
 
     with patch("app.services.scraper_service.get_scraper", return_value=mock_scraper):
-        await client.post(
+        await pg_client.post(
             f"/api/v1/trips/{trip_id}/scrape",
             json={"provider": "google_flights"},
             headers=_auth_header(token),
         )
 
-    resp = await client.get(
+    resp = await pg_client.get(
         f"/api/v1/trips/{trip_id}/prices?page=1&per_page=2",
         headers=_auth_header(token),
     )
@@ -229,50 +233,50 @@ async def test_get_price_history_pagination(client):
     assert body["meta"]["total_pages"] == 3
 
 
-async def test_get_price_history_filter_provider(client):
+async def test_get_price_history_filter_provider(pg_client):
     """GET /trips/{id}/prices?provider= filters by provider."""
-    token = await _register_and_login(client)
-    trip_id = await _create_trip(client, token)
+    token = await _register_and_login(pg_client)
+    trip_id = await _create_trip(pg_client, token)
 
     mock_scraper = AsyncMock()
     mock_scraper.execute.return_value = _mock_results()
 
     with patch("app.services.scraper_service.get_scraper", return_value=mock_scraper):
-        await client.post(
+        await pg_client.post(
             f"/api/v1/trips/{trip_id}/scrape",
             json={"provider": "google_flights"},
             headers=_auth_header(token),
         )
 
     # Filter by provider that has data
-    resp = await client.get(
+    resp = await pg_client.get(
         f"/api/v1/trips/{trip_id}/prices?provider=google_flights",
         headers=_auth_header(token),
     )
     assert resp.json()["meta"]["total"] == 1
 
     # Filter by provider with no data
-    resp2 = await client.get(
+    resp2 = await pg_client.get(
         f"/api/v1/trips/{trip_id}/prices?provider=other",
         headers=_auth_header(token),
     )
     assert resp2.json()["meta"]["total"] == 0
 
 
-async def test_get_price_history_not_found(client):
+async def test_get_price_history_not_found(pg_client):
     """GET /trips/{id}/prices returns 404 for non-existent trip."""
-    token = await _register_and_login(client)
+    token = await _register_and_login(pg_client)
     fake_id = str(uuid.uuid4())
 
-    resp = await client.get(
+    resp = await pg_client.get(
         f"/api/v1/trips/{fake_id}/prices",
         headers=_auth_header(token),
     )
     assert resp.status_code == 404
 
 
-async def test_get_price_history_unauthenticated(client):
+async def test_get_price_history_unauthenticated(pg_client):
     """GET /trips/{id}/prices without token returns 401."""
     fake_id = str(uuid.uuid4())
-    resp = await client.get(f"/api/v1/trips/{fake_id}/prices")
+    resp = await pg_client.get(f"/api/v1/trips/{fake_id}/prices")
     assert resp.status_code == 401

@@ -21,6 +21,8 @@ class PriceWatch(Base):
         currency: ISO 4217 currency code.
         is_active: Whether this watch is actively monitoring.
         alert_cooldown_hours: Minimum hours between alerts for this watch.
+        scrape_interval_minutes: How often to scrape this watch (15-1440 min).
+        next_scrape_at: When this watch is next due for scraping.
         created_at: Record creation timestamp (UTC).
         updated_at: Last modification timestamp (UTC).
     """
@@ -43,6 +45,12 @@ class PriceWatch(Base):
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="USD")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     alert_cooldown_hours: Mapped[int] = mapped_column(Integer, default=6)
+    scrape_interval_minutes: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=60
+    )
+    next_scrape_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
     last_alerted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

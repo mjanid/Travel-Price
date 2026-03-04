@@ -3,7 +3,6 @@
 import warnings
 from functools import lru_cache
 
-from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _INSECURE_DEFAULT_KEY = "CHANGE-ME-IN-PRODUCTION"
@@ -48,7 +47,7 @@ class Settings(BaseSettings):
     # Celery / Worker settings
     celery_broker_url: str = "redis://localhost:6379/1"
     celery_result_backend: str = "redis://localhost:6379/2"
-    scrape_interval_minutes: int = 60
+    # Scrape intervals are now per-watch (15-1440 min, default 60)
 
     # Alert / Notification settings
     alert_cooldown_hours: int = 6
@@ -62,14 +61,6 @@ class Settings(BaseSettings):
     playwright_headless: bool = True
     playwright_timeout_ms: int = 45000
     playwright_screenshot_on_failure: bool = False
-
-    @field_validator("scrape_interval_minutes")
-    @classmethod
-    def validate_scrape_interval(cls, v: int) -> int:
-        """Ensure scrape interval is positive."""
-        if v <= 0:
-            raise ValueError("scrape_interval_minutes must be positive")
-        return v
 
     def warn_if_insecure(self) -> None:
         """Emit a warning if the secret key is the insecure default."""

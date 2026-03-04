@@ -14,6 +14,25 @@ interface WatchCardProps {
   watch: PriceWatch;
 }
 
+function formatInterval(minutes: number): string {
+  if (minutes < 60) return `${minutes}min`;
+  const hours = minutes / 60;
+  if (Number.isInteger(hours)) return `${hours}h`;
+  return `${minutes}min`;
+}
+
+function formatNextScrape(iso: string | null): string {
+  if (!iso) return "Pending";
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = d.getTime() - now.getTime();
+  if (diffMs <= 0) return "Due now";
+  const diffMin = Math.round(diffMs / 60000);
+  if (diffMin < 60) return `in ${diffMin}min`;
+  const diffHours = Math.round(diffMin / 60);
+  return `in ${diffHours}h`;
+}
+
 export function WatchCard({ watch }: WatchCardProps) {
   const router = useRouter();
   const updateWatch = useUpdateWatch(watch.id);
@@ -43,7 +62,11 @@ export function WatchCard({ watch }: WatchCardProps) {
               Target: {formatPrice(watch.target_price, watch.currency)}
             </p>
             <p className="mt-1 text-xs text-muted">
-              Cooldown: {watch.alert_cooldown_hours}h
+              Cooldown: {watch.alert_cooldown_hours}h &middot; Every{" "}
+              {formatInterval(watch.scrape_interval_minutes)}
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              Next check: {formatNextScrape(watch.next_scrape_at)}
             </p>
           </div>
           <Badge variant={watch.is_active ? "success" : "default"}>

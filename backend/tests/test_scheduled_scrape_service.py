@@ -75,60 +75,6 @@ def _mock_price_results(provider: str = "google_flights") -> list[PriceResult]:
     ]
 
 
-# --- get_active_trip_ids tests ---
-
-
-async def test_get_active_trip_ids_returns_future_trips(db_session):
-    """Only trips with departure_date >= today are returned."""
-    user = await _create_user(db_session)
-
-    # Future trip
-    future_trip = await _create_trip(db_session, user.id, departure_date=date(2027, 12, 1))
-    # Past trip
-    await _create_trip(db_session, user.id, departure_date=date(2020, 1, 1))
-
-    service = ScheduledScrapeService(db_session)
-    trip_ids = await service.get_active_trip_ids()
-
-    assert len(trip_ids) == 1
-    assert trip_ids[0][0] == future_trip.id
-    assert trip_ids[0][1] == user.id
-
-
-async def test_get_active_trip_ids_empty_when_no_trips(db_session):
-    """Returns empty list when no trips exist."""
-    service = ScheduledScrapeService(db_session)
-    trip_ids = await service.get_active_trip_ids()
-    assert trip_ids == []
-
-
-async def test_get_active_trip_ids_empty_when_all_past(db_session):
-    """Returns empty list when all trips are in the past."""
-    user = await _create_user(db_session)
-    await _create_trip(db_session, user.id, departure_date=date(2020, 1, 1))
-    await _create_trip(db_session, user.id, departure_date=date(2021, 6, 1))
-
-    service = ScheduledScrapeService(db_session)
-    trip_ids = await service.get_active_trip_ids()
-    assert trip_ids == []
-
-
-async def test_get_active_trip_ids_multiple_users(db_session):
-    """Returns trips from all users."""
-    user1 = await _create_user(db_session, email="user1@example.com")
-    user2 = await _create_user(db_session, email="user2@example.com")
-    trip1 = await _create_trip(db_session, user1.id)
-    trip2 = await _create_trip(db_session, user2.id)
-
-    service = ScheduledScrapeService(db_session)
-    trip_ids = await service.get_active_trip_ids()
-
-    assert len(trip_ids) == 2
-    ids = {t[0] for t in trip_ids}
-    assert trip1.id in ids
-    assert trip2.id in ids
-
-
 # --- scrape_trip_background tests ---
 
 

@@ -22,9 +22,9 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     beat_schedule={
-        "scrape-active-trips": {
-            "task": "app.workers.tasks.scrape_all_active_trips",
-            "schedule": settings.scrape_interval_minutes * 60,
+        "dispatch-due-scrapes": {
+            "task": "app.workers.tasks.dispatch_due_scrapes",
+            "schedule": 300.0,  # Every 5 minutes
         },
     },
 )
